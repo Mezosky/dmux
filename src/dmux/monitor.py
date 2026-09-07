@@ -1,6 +1,7 @@
 """Adapter-neutral aggregation of experiment and machine state."""
 from __future__ import annotations
 
+from dataclasses import asdict
 import math
 from pathlib import Path
 import shutil
@@ -8,9 +9,9 @@ import time
 from typing import Callable, Mapping
 
 from .adapters.base import resolve_path
-from .adapters.supergpqa import SuperGPQAAdapter
+from .adapters.filesystem import FilesystemAdapter
 from .connectors import JsonCache, tail_log
-from .projects import project_paths, run_tag
+from .projects import experiment_roster, project_paths, run_tag
 from .system import gpu_info, running_processes
 
 
@@ -31,7 +32,7 @@ class Monitor:
         processes: Callable[[], list[dict]] | None = None,
         gpu: Callable[[], dict] = gpu_info,
     ) -> None:
-        self.adapter = adapter or SuperGPQAAdapter()
+        self.adapter = adapter or FilesystemAdapter()
         initial_root = Path(project_root).expanduser().resolve() if project_root else Path.cwd()
         self.queue = resolve_path(queue, initial_root)
         self.project_root = initial_root
@@ -73,9 +74,12 @@ class Monitor:
             return {
                 "state": "waiting",
                 "queue": str(self.queue),
+                "plan_dir": str(self.queue),
                 "project_root": str(self.project_root),
                 "updated": now,
                 "adapter": self.adapter.presentation.name,
+                "presentation": asdict(self.adapter.presentation),
+                "experiments": [],
                 "message": "Waiting for a readable plan.json",
                 "models": [],
                 "tasks": [],
@@ -90,9 +94,12 @@ class Monitor:
             return {
                 "state": "invalid",
                 "queue": str(self.queue),
+                "plan_dir": str(self.queue),
                 "project_root": str(self.project_root),
                 "updated": now,
                 "adapter": self.adapter.presentation.name,
+                "presentation": asdict(self.adapter.presentation),
+                "experiments": [],
                 "message": f"Invalid plan.json: {exc}",
                 "models": [],
                 "tasks": [],
@@ -164,13 +171,16 @@ class Monitor:
                     f'{task["model"]}/{task["name"]}: output integrity/count issue — inspect files'
                 )
             expected = self.adapter.expected(task, progress)
+            log = self.adapter.task_log(task, self.queue, path)
             tasks.append(
                 {
                     "model": task["model"],
+                    "experiment": task["model"],
                     "project": raw_task.get("project"),
                     "project_root": str(location.root),
                     "results_dir": str(location.results),
                     "name": task["name"],
+                    "stage": task["name"],
                     "label": task.get("label", self.adapter.presentation.stage_label(task["name"])),
                     "state": state,
                     "expected": expected,
@@ -187,7 +197,7 @@ class Monitor:
                                  **plan.get("projects", {}).get(raw_task.get("project"), {}).get("metadata", {}),
                                  **task.get("metadata", {})},
                     "outputs": list(task.get("outputs", [])),
-                    "log": str(self.adapter.task_log(task, self.queue, path)),
+                    "log": str(log) if log is not None else None,
                 }
             )
 
@@ -213,11 +223,11 @@ class Monitor:
                 if any(task["state"] in {"partial", "interrupted"} for task in tasks)
                 else "idle"
             )
-        if not queue_jobs and active and active["pid"]:
-            warnings.append("Experiment child is alive but the parent queue was not found")
+        if self.adapter.queue_script and not queue_jobs and active and active["pid"]:
+            warnings.append("Experiment is running but its configured scheduler was not found")
 
         order = list(dict.fromkeys(task["model"] for task in tasks))
-        roster = {run_tag({**row, "run": row["tag"]}): row for row in plan.get("roster", [])}
+        roster = {run_tag({**row, "run": row["tag"]}): row for row in experiment_roster(plan)}
         order += [tag for tag in roster if tag not in order]
         models = []
         for tag in order:
@@ -227,9 +237,10 @@ class Monitor:
             models.append(
                 {
                     "tag": tag,
+                    "label": self.adapter.presentation.entity_name(tag),
                     "model_id": roster.get(tag, {}).get("model_id", tag),
                     "blocked": not bool(model_tasks),
-                    "reason": roster.get(tag, {}).get("audit_status"),
+                    "reason": roster.get(tag, {}).get("reason") or ("No stages declared" if not model_tasks else None),
                     "expected": expected,
                     "saved": saved,
                     "completed_stages": sum(
@@ -256,7 +267,9 @@ class Monitor:
         return {
             "state": state,
             "adapter": self.adapter.presentation.name,
+            "presentation": asdict(self.adapter.presentation),
             "queue": str(self.queue),
+            "plan_dir": str(self.queue),
             "project_root": str(project_root),
             "results_dir": str(locations[None].results),
             "projects": {name: {"root": str(value.root), "results_dir": str(value.results)}
@@ -265,6 +278,7 @@ class Monitor:
             "updated": now,
             "tasks": tasks,
             "models": models,
+            "experiments": models,
             "active": active,
             "queue_pid": queue_jobs[0]["pid"] if queue_jobs else None,
             "expected": sum(model["expected"] for model in models),

@@ -2,11 +2,13 @@
 
 from .connectors import FileArtifact, IncrementalJsonlReader, JsonCache, tail_log
 from .adapters.base import ExperimentAdapter, Presentation
+from .adapters.filesystem import FilesystemAdapter
 from .monitor import Monitor
 
 __all__ = [
     "ExperimentAdapter",
     "FileArtifact",
+    "FilesystemAdapter",
     "IncrementalJsonlReader",
     "JsonCache",
     "Monitor",

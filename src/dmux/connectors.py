@@ -130,7 +130,7 @@ ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
 def tail_log(
-    path: str | Path,
+    path: str | Path | None,
     n: int = 3,
     *,
     formatter: Callable[[Mapping], str | None] | None = None,
@@ -139,6 +139,8 @@ def tail_log(
 ) -> list[str]:
     """Return a sanitized, bounded tail without following or modifying a log."""
 
+    if path is None:
+        return []
     try:
         with Path(path).open("rb") as handle:
             handle.seek(0, os.SEEK_END)

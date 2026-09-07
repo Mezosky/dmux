@@ -4,12 +4,10 @@ from __future__ import annotations
 from importlib.metadata import entry_points
 
 from .adapters.filesystem import FilesystemAdapter
-from .adapters.supergpqa import SuperGPQAAdapter
 
 
 BUILTINS = {
     "filesystem": FilesystemAdapter,
-    "supergpqa": SuperGPQAAdapter,
 }
 
 
@@ -26,4 +24,3 @@ def load_adapter(name: str):
         available = ", ".join(adapter_names())
         raise ValueError(f"Unknown adapter {name!r}. Available adapters: {available}")
     return matches[0].load()()
-

@@ -167,41 +167,20 @@ def test_jsonl_duplicates_and_partial_rows_never_inflate_progress(tmp_path):
     assert snapshot["tasks"][0]["state"] == "invalid"
 
 
-def test_supergpqa_relative_plan_paths_use_explicit_project_root(tmp_path, monkeypatch):
-    project = tmp_path / "research"
-    queue = project / "queue"
+def test_default_adapter_resolves_relative_paths_from_another_directory(tmp_path, monkeypatch):
+    project = tmp_path / "ml-project"
+    queue = project / "monitor"
     output = project / "results/run"
     task = {
-        "model": "e4b",
-        "name": "train",
+        "experiment": "classifier",
+        "stage": "train",
         "directory": "results/run",
-        "expected_cells": 1,
-        "command": ["python", "experiment.py", "--out", "results/run"],
+        "expected": 1,
+        "progress": {"type": "jsonl", "path": "metrics.jsonl", "identity": ["sample_id"]},
     }
-    write_json(queue / "plan.json", {"tasks": [task], "roster": [{"tag": "e4b"}]})
-    write_json(
-        output / "run.json",
-        {
-            "target_uuids": ["q1"],
-            "grid": [["ZS", 0, 0]],
-            "dry_run": False,
-            "expected_cells": 1,
-        },
-    )
-    output.joinpath("rows.jsonl").write_text(
-        json.dumps(
-            {
-                "cell_id": "cell-1",
-                "target_uuid": "q1",
-                "arm": "ZS",
-                "length": 0,
-                "replicate": 0,
-                "status": "ok",
-            }
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    write_json(queue / "plan.json", {"tasks": [task], "experiments": [{"tag": "classifier"}]})
+    output.mkdir(parents=True)
+    output.joinpath("metrics.jsonl").write_text('{"sample_id": "image-1"}\n', encoding="utf-8")
     elsewhere = tmp_path / "elsewhere"
     elsewhere.mkdir()
     monkeypatch.chdir(elsewhere)

@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 
 from ..connectors import IncrementalJsonlReader, JsonCache
 from .base import Presentation, command_option, resolve_path
-from ..projects import run_tag
+from ..projects import experiment_roster, run_tag
 
 
 def _field(value, dotted: str, default=None):
@@ -40,6 +40,7 @@ class RecordTracker:
     semantic: set[tuple] = field(default_factory=set)
     statuses: Counter = field(default_factory=Counter)
     groups: Counter = field(default_factory=Counter)
+    group_statuses: Counter = field(default_factory=Counter)
     schema_malformed: int = 0
     duplicates: int = 0
     unexpected: int = 0
@@ -58,6 +59,7 @@ class RecordTracker:
         self.semantic.clear()
         self.statuses.clear()
         self.groups.clear()
+        self.group_statuses.clear()
         self.schema_malformed = self.duplicates = self.unexpected = 0
         self.last_group = None
 
@@ -78,11 +80,18 @@ class RecordTracker:
                 group = _field(record, group_field) if group_field else None
                 if status_field and status is None:
                     raise KeyError("missing status")
+                hash(identity)
+                if semantic is not None:
+                    hash(semantic)
+                hash(group)
             except (KeyError, TypeError):
                 self.schema_malformed += 1
                 continue
             if identity in self.seen or (semantic is not None and semantic in self.semantic):
                 self.duplicates += 1
+                continue
+            if any(_field(record, name, object()) not in values for name, values in allowed.items()):
+                self.unexpected += 1
                 continue
             self.seen.add(identity)
             if semantic is not None:
@@ -90,9 +99,8 @@ class RecordTracker:
             self.statuses[str(status)] += 1
             if group_field:
                 self.groups[group] += 1
+                self.group_statuses[group, str(status)] += 1
                 self.last_group = group
-            if any(_field(record, name, object()) not in values for name, values in allowed.items()):
-                self.unexpected += 1
 
     def snapshot(self, now: float, expected: int | None) -> dict:
         valid_statuses = set(self.config.get("valid_statuses", ("ok",)))
@@ -103,7 +111,7 @@ class RecordTracker:
                 "label": str(group),
                 "saved": saved,
                 "expected": int(expected_groups.get(str(group), 0)),
-                "excluded": 0,
+                "excluded": sum(self.group_statuses[group, status] for status in excluded_statuses),
                 "rate_per_second": None,
                 "eta_seconds": None,
             }
@@ -136,7 +144,6 @@ class RecordTracker:
             ),
             "last": {"group": self.last_group} if self.last_group is not None else None,
             "breakdown": breakdown,
-            "windows": [],
             "breakdown_title": self.config.get("group_label", "Breakdown"),
         }
 
@@ -149,11 +156,11 @@ class FilesystemAdapter:
 
     def __init__(self) -> None:
         self.presentation = Presentation(
-            name="Filesystem",
+            name="Experiments",
             stages=("run",),
             labels={"run": "Run"},
             short_labels=("Run",),
-            entity_heading="RUN",
+            entity_heading="EXPERIMENT",
             unit="items",
         )
         self._processes: dict[str, Mapping] = {}
@@ -169,18 +176,18 @@ class FilesystemAdapter:
             stage: configured_stage_labels.get(stage, stage.replace("_", " ").title())
             for stage in stages
         }
-        roster = plan.get("roster", [])
+        roster = experiment_roster(plan)
         names = {run_tag({**row, "run": row["tag"]}): row.get("label", row.get("model_id", row["tag"]))
                  for row in roster}
         short_labels = plan.get("short_labels")
         self.presentation = Presentation(
-            name=plan.get("name", "Filesystem"),
+            name=plan.get("name", "Experiments"),
             stages=stages or ("run",),
             labels=labels,
             short_labels=tuple(short_labels or tuple(label[:8] for label in labels.values()))
             or ("Run",),
             entity_names=names,
-            entity_heading=plan.get("entity_heading", "RUN"),
+            entity_heading=plan.get("entity_heading", "EXPERIMENT"),
             unit=plan.get("unit", "items"),
         )
         queue_process = plan.get("queue_process", {})
@@ -212,10 +219,10 @@ class FilesystemAdapter:
             prefix = f"plan.tasks[{index}]"
             if not isinstance(task, Mapping):
                 raise ValueError(f"{prefix} must be an object")
-            run = task.get("model", task.get("run", task.get("group", "default")))
+            run = task.get("experiment", task.get("run", task.get("model", task.get("group", "default"))))
             stage = task.get("name", task.get("stage", "run"))
             if not isinstance(run, str) or not run or not isinstance(stage, str) or not stage:
-                raise ValueError(f"{prefix} run/model and stage/name must be non-empty strings")
+                raise ValueError(f"{prefix} experiment and stage must be non-empty strings")
             directory = task.get("directory")
             if not isinstance(task.get("metadata", {}), Mapping):
                 raise ValueError(f"{prefix}.metadata must be an object")
@@ -292,12 +299,12 @@ class FilesystemAdapter:
         directory = task.get("directory")
         return resolve_path(directory, project_root) if directory else None
 
-    def task_log(self, task: Mapping, queue: Path, path: Path | None) -> Path:
+    def task_log(self, task: Mapping, queue: Path, path: Path | None) -> Path | None:
         configured = task.get("log")
         if configured:
             base = path or queue
             return resolve_path(configured, base)
-        return queue / f'{task["model"]}_{task["name"]}.log'
+        return None
 
     def pause_requested(self, queue: Path) -> bool:
         return bool(self._pause_file and resolve_path(self._pause_file, queue).exists())
@@ -379,7 +386,6 @@ class FilesystemAdapter:
             "last_save_age_seconds": None,
             "last": None,
             "breakdown": [],
-            "windows": [],
             "breakdown_title": "Breakdown",
         }
 

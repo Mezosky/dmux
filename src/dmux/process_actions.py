@@ -103,11 +103,11 @@ def main(argv=None):
     from .registry import load_adapter
 
     parser = argparse.ArgumentParser(prog="dmux kill", description="Request SIGTERM for selected experiment processes")
-    parser.add_argument("--model", "--experiment", dest="model", required=True)
+    parser.add_argument("--experiment", "--model", dest="model", required=True)
     parser.add_argument("--stage", help="Omit to stop every currently live stage of the experiment")
     parser.add_argument("--project-root", type=Path)
     parser.add_argument("--results-dir", type=Path)
-    parser.add_argument("--queue", type=Path)
+    parser.add_argument("--plan-dir", "--queue", dest="queue", type=Path)
     parser.add_argument("--adapter", default="filesystem")
     parser.add_argument("--confirm", help="Exact experiment[/stage] label")
     args = parser.parse_args(argv)
@@ -119,7 +119,7 @@ def main(argv=None):
                            gpu=lambda: {"devices": [], "error": "disabled"}).snapshot()
         request = prepare_stop(snapshot, args.model, args.stage)
         print(f"Stop {request.label}: " + ", ".join(str(p.pid) for p in request.targets))
-        print("The parent queue and tmux chats are unchanged; the queue may schedule more work.")
+        print("Chats and results are kept. If a scheduler is used, it may schedule more work.")
         confirmation = args.confirm
         if confirmation is None:
             if not sys.stdin.isatty():

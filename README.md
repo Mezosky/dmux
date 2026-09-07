@@ -13,6 +13,9 @@ The interface combines visual experiment tabs, a pipeline overview, exact
 stage counters, responsive detail panels, resource telemetry, recent logs, and
 optional tmux workspaces for experiments and AI CLI chats.
 
+The core is framework- and benchmark-independent. Experiments, stages, record
+identities, and output locations come from your plan, not a bundled model roster.
+
 ![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](screenshots/experiment-overview.png)
 
 Compare vision/text, language, tabular, and audio experiments in one overview.
@@ -38,7 +41,7 @@ checkpoint files, logs, and completion artifacts:
 
 ```bash
 dmux demo --project-root /tmp/dmux-demo --tmux
-dmux watch --project-root /tmp/dmux-demo --queue monitor
+dmux watch --project-root /tmp/dmux-demo --plan-dir monitor
 ```
 
 Each experiment gets its own tmux session, with `chat` and `experiment` windows.
@@ -61,8 +64,8 @@ matcher illustrates a dual-encoder workflow without loading pretrained CLIP.
 Non-interactive consumers can use:
 
 ```bash
-dmux snapshot --adapter filesystem --project-root /tmp/dmux-demo --queue monitor
-dmux json --adapter filesystem --project-root /tmp/dmux-demo --queue monitor
+dmux snapshot --project-root /tmp/dmux-demo --plan-dir monitor
+dmux json --project-root /tmp/dmux-demo --plan-dir monitor
 ```
 
 ### Reading a live run
@@ -80,8 +83,9 @@ dmux json --adapter filesystem --project-root /tmp/dmux-demo --queue monitor
   experiment. This tiny language model runs on CPU; the screenshot's busy GPU
   can belong to other workloads.
 
-The yellow parent-queue warning in this capture comes from a standalone worker
-with no queue runner. It does not mean the displayed process has stopped.
+The yellow parent-queue warning is from an earlier build. Standalone experiments
+no longer require a scheduler; dmux warns about a missing scheduler only when
+one is explicitly configured.
 Closing dmux leaves that process running; explicit stops require confirmation.
 
 ### Connect existing experiment files
@@ -97,15 +101,16 @@ The declarative [`plan.json` schema](docs/PLAN_SCHEMA.md) supports:
 
 All relative task paths resolve against an explicit `--project-root` or the
 `project_root` declared by the plan—not dmux's installation directory.
-The generic `filesystem` adapter is the `dmux` command's default; specialized
-adapters are always selected explicitly.
+The generic `filesystem` adapter is the default for both the CLI and Python API.
+It is the only bundled adapter; optional external adapters can interpret custom
+formats. See [how to connect an existing project](MIGRATION.md).
 
 ## Point a project at its outputs
 
 Keep the monitoring plan beside your code while reading an external result disk:
 
 ```bash
-dmux watch --project-root /work/vision --queue monitor --results-dir /data/vision-results
+dmux watch --project-root /work/vision --plan-dir monitor --results-dir /data/vision-results
 ```
 
 Task directories in `monitor/plan.json` resolve beneath the chosen result
@@ -129,7 +134,7 @@ generated files:
 
 ```json
 {
-  "run": "clip",
+  "experiment": "clip",
   "stage": "evaluate",
   "directory": "clip-eval",
   "metadata": {"dataset": "validation", "seed": 7},
@@ -206,12 +211,12 @@ start times and commands before requesting SIGTERM. It never escalates to a forc
 kill automatically. To do the same from a command:
 
 ```bash
-dmux kill --project-root /work/vision --queue monitor --model clip --stage evaluate
+dmux kill --project-root /work/vision --plan-dir monitor --experiment clip --stage evaluate
 ```
 
 Omit `--stage` to stop all live stages in the experiment. Interactive use asks
 for the exact experiment or experiment/stage label; scripts must provide it via
-`--confirm`. The parent queue is not stopped and may schedule additional work.
+`--confirm`. If you use a scheduler, it is not stopped and may schedule additional work.
 Stopping a stage preserves its tmux chat windows and output files.
 
 ## Adapter API
@@ -237,6 +242,6 @@ pytest -q
 python -m dmux --help
 ```
 
-The suite includes the original 40 tests and tiny-model coverage for JSON,
-JSONL, logs, artifacts, explicit project-root resolution, responsive visuals,
-terminal restoration, and tmux integration on private temporary sockets.
+The suite uses generic fixtures and tiny models to cover JSON, JSONL, logs,
+artifacts, explicit project-root resolution, responsive visuals, terminal
+restoration, and tmux integration on private temporary sockets.

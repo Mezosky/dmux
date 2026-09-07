@@ -4,7 +4,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from .adapters.base import Presentation
-from .adapters.supergpqa import SUPERGPQA
 
 
 COLORS = {
@@ -122,7 +121,17 @@ def render_dashboard(
     from rich.table import Table
     from rich.text import Text
 
-    presentation = presentation or SUPERGPQA
+    if presentation is None:
+        if snapshot.get("presentation"):
+            presentation = Presentation(**snapshot["presentation"])
+        else:
+            # Hand-built snapshots remain usable without importing any adapter.
+            stages = tuple(dict.fromkeys(task["name"] for task in snapshot.get("tasks", []))) or ("run",)
+            labels = {name: name.replace("_", " ").title() for name in stages}
+            presentation = Presentation(
+                name=snapshot.get("adapter", "Experiments"), stages=stages,
+                labels=labels, short_labels=tuple(label[:8] for label in labels.values()),
+            )
     color = COLORS.get(snapshot["state"], "white")
     now = datetime.fromtimestamp(snapshot["updated"], timezone.utc).strftime("%H:%M:%S UTC")
     title = Text("DMUX", style="bold bright_cyan")
@@ -209,7 +218,7 @@ def render_dashboard(
                 None,
             )
             current_state = (
-                "needs validation"
+                model.get("reason") or "No stages declared"
                 if model["blocked"]
                 else task_label(current, presentation)
                 if current
@@ -308,11 +317,11 @@ def render_dashboard(
             )
         if not focus:
             model = next((model for model in snapshot["models"] if model["tag"] == selected), {})
-            steps.add_row("Validation required", Text("blocked", style="yellow"), "—")
+            steps.add_row("No stages declared", Text("blocked", style="yellow"), "—")
             steps.caption = model.get("reason", "Not scheduled")
 
         progress = current["progress"] if current else None
-        breakdown = progress.get("breakdown", progress.get("windows", [])) if progress else []
+        breakdown = progress.get("breakdown", []) if progress else []
         if breakdown:
             details = Table(box=None, expand=True, padding=(0, 1))
             details.add_column("GROUP")
@@ -320,7 +329,7 @@ def render_dashboard(
             details.add_column("PROGRESS", justify="right")
             for group in breakdown:
                 details.add_row(
-                    str(group.get("label", group.get("length", "—"))),
+                    str(group.get("label", "—")),
                     f'{group["saved"]:,} / {group["expected"]:,}',
                     progress_text(group["saved"], group["expected"], width=8),
                 )

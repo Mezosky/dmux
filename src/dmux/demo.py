@@ -34,7 +34,7 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
         "entity_heading": "EXPERIMENT",
         "project_root": str(queue.parent),
         "results_dir": str(results_dir or queue.parent / "runs"),
-        "roster": [
+        "experiments": [
             {"tag": "tiny_clip", "label": "Tiny CLIP · vision+text"},
             {"tag": "tiny_llm", "label": "Bigram LM · language"},
             {"tag": "tabular", "label": "Linear regressor · tabular"},
@@ -42,7 +42,7 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
         ],
         "tasks": [
             {
-                "run": "tiny_clip",
+                "experiment": "tiny_clip",
                 "stage": "evaluate",
                 "label": "Zero-shot image/text matching",
                 "directory": "tiny_clip",
@@ -62,7 +62,7 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
                 },
             },
             {
-                "run": "tiny_llm",
+                "experiment": "tiny_llm",
                 "stage": "train",
                 "label": "Train bigram language model",
                 "directory": "tiny_llm",
@@ -77,7 +77,7 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
                 "completion": {"type": "file", "path": "model.json"},
             },
             {
-                "run": "tabular",
+                "experiment": "tabular",
                 "stage": "train",
                 "label": "Fit linear regressor",
                 "directory": "tabular",
@@ -85,7 +85,7 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
                 "progress": {"type": "files", "glob": "checkpoint-*.json"},
             },
             {
-                "run": "audio",
+                "experiment": "audio",
                 "stage": "evaluate",
                 "label": "Classify synthetic frequencies",
                 "directory": "audio",
@@ -100,7 +100,7 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
 
 
 def update_status(queue: Path, run: str | None, stage: str | None) -> None:
-    active = {"run": run, "stage": stage} if run and stage else None
+    active = {"experiment": run, "stage": stage} if run and stage else None
     write_json(queue / "status.json", {"active": active, "completed_tasks": []})
 
 
@@ -245,14 +245,14 @@ def main(argv=None) -> None:
         parser.error("Demo outputs already exist; choose a fresh --project-root and --results-dir")
     definition = plan(args.steps, queue, results)
     for task in definition["tasks"]:
-        task["metadata"] = {"demo": True, "experiment": task["run"], "steps": args.steps,
+        task["metadata"] = {"demo": True, "experiment": task["experiment"], "steps": args.steps,
                             "description": task["label"]}
         task["outputs"] = {
             "tiny_clip": ["predictions.jsonl", "evaluate.log"],
             "tiny_llm": ["progress.json", "model.json", "train.log"],
             "tabular": ["checkpoint-*.json"],
             "audio": ["metrics.json"],
-        }[task["run"]]
+        }[task["experiment"]]
     if args.tmux:
         from .sessions import SessionError, SessionManager
         from .tmux import TmuxNavigator
@@ -289,11 +289,11 @@ def main(argv=None) -> None:
     else:
         write_json(queue / "plan.json", definition)
         for task in definition["tasks"]:
-            update_status(queue, task["run"], task["stage"])
-            run_experiment(task["run"], results, args.steps, args.delay)
+            update_status(queue, task["experiment"], task["stage"])
+            run_experiment(task["experiment"], results, args.steps, args.delay)
         update_status(queue, None, None)
     print(f"Tiny model zoo ready at {root}")
-    print(f"dmux watch --project-root {shlex.quote(str(root))} --queue monitor")
+    print(f"dmux watch --project-root {shlex.quote(str(root))} --plan-dir monitor")
     if args.tmux:
         print("Press t to browse the linked sessions; chat windows are ready for your AI CLI.")
 

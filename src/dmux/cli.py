@@ -46,12 +46,12 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
         help="Read task outputs relative to this directory (relative to project root if not absolute)",
     )
     result.add_argument(
-        "--queue",
+        "--plan-dir", "--queue", dest="queue",
         type=Path,
-        help="Queue/run directory containing plan.json (adapter default if omitted)",
+        help="Directory containing plan.json (default: project root); --queue is an alias",
     )
     result.add_argument("--interval", type=float, default=2.0, help="Refresh seconds (default: 2)")
-    result.add_argument("--model", "--experiment", dest="model", help="Initially focus an experiment tag")
+    result.add_argument("--experiment", "--model", dest="model", help="Initially focus an experiment tag")
     result.add_argument("--stage", help="Initially inspect a stage instead of following the active one")
     modes = result.add_mutually_exclusive_group()
     modes.add_argument("--once", action="store_true", help="Print one expanded dashboard and exit")
@@ -63,7 +63,7 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
         action="append",
         default=[],
         metavar="RUN=TARGET",
-        help="Link a run to an existing tmux target; repeatable (*=TARGET for queue)",
+        help="Link an experiment to an existing tmux target; repeatable (*=TARGET for all)",
     )
     result.add_argument(
         "--tmux-client", help="Explicit client TTY when several clients share a session"
@@ -162,7 +162,7 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
     snapshot["tmux"] = navigator.snapshot(snapshot["tasks"])
     tags = {model["tag"] for model in snapshot["models"]}
     if args.model and tags and args.model not in tags:
-        argument_parser.error("Unknown model/run tag; use one from the plan")
+        argument_parser.error("Unknown experiment tag; use one from the plan")
     if args.stage and args.stage not in adapter.presentation.stages:
         argument_parser.error("Unknown stage; use one from the plan")
     if tags and set(links) - {"*", *tags}:
@@ -191,7 +191,8 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
     hidden = set()
 
     def visible_snapshot():
-        return {**snapshot, "models": [m for m in snapshot["models"] if m["tag"] not in hidden],
+        visible = [m for m in snapshot["models"] if m["tag"] not in hidden]
+        return {**snapshot, "models": visible, "experiments": visible,
                 "active": snapshot.get("active") if (snapshot.get("active") or {}).get("model") not in hidden else None}
 
     def current_model():

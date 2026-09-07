@@ -13,8 +13,8 @@ class Presentation:
     labels: Mapping[str, str]
     short_labels: tuple[str, ...]
     entity_names: Mapping[str, str] = field(default_factory=dict)
-    entity_heading: str = "RUN"
-    unit: str = "evaluations"
+    entity_heading: str = "EXPERIMENT"
+    unit: str = "items"
 
     def stage_label(self, name: str) -> str:
         return self.labels.get(name, name.replace("_", " ").title())
@@ -41,7 +41,7 @@ class ExperimentAdapter(Protocol):
 
     def inspect_task(self, task: Mapping, path: Path | None, cache, trackers, now: float): ...
 
-    def task_log(self, task: Mapping, queue: Path, path: Path | None) -> Path: ...
+    def task_log(self, task: Mapping, queue: Path, path: Path | None) -> Path | None: ...
 
     def expected(self, task: Mapping, progress: Mapping | None) -> int | None: ...
 

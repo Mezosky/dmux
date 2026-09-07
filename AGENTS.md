@@ -4,9 +4,9 @@
 
 dmux is a terminal workspace and monitor for ML experiments.
 It observes JSON, JSONL, logs, artifacts, processes, GPUs, disks, and optionally
-existing tmux panes. It never becomes part of the training runtime. SuperGPQA is
-the first specialized adapter and a compatibility fixture, not the generic
-library's identity.
+existing tmux panes. It never becomes part of the training runtime. It has no
+dependency on a particular benchmark, model family, research repository, stage
+sequence, or results layout.
 
 ## Architecture
 
@@ -14,8 +14,8 @@ library's identity.
   meaning and no writes.
 - `src/dmux/adapters/base.py`: public adapter and presentation contracts.
 - `src/dmux/adapters/filesystem.py`: declarative common-layout adapter.
-- `src/dmux/adapters/supergpqa.py`: scientific schema, roster, stages, and
-  integrity rules carried forward from the source monitor.
+- `src/dmux/registry.py`: the generic filesystem adapter and optional third-party
+  adapters discovered through entry points.
 - `src/dmux/monitor.py`: adapter-neutral snapshot aggregation and path policy.
 - `src/dmux/projects.py`: per-project code/results locations and run namespaces.
 - `src/dmux/system.py`: process and GPU observation; never process control.
@@ -27,7 +27,7 @@ library's identity.
 - `src/dmux/process_actions.py`: identity-checked, confirmed SIGTERM actions.
 - `src/dmux/terminal.py`: keyboard decoding and guaranteed termios restoration.
 - `src/dmux/cli.py`: dependency checks and interactive/non-interactive modes.
-- `scripts/`: legacy compatibility imports, not the implementation home.
+- `examples/`: tiny heterogeneous workloads; examples never supply core defaults.
 
 ## Non-negotiable invariants
 
@@ -36,9 +36,11 @@ library's identity.
    session creation is allowed through explicit commands/demo launch, session
    removal through exact-name confirmation, and stage/experiment SIGTERM through
    exact-label confirmation. These are never automatic monitoring actions.
-2. Scientific adapters count committed unique evaluations. Malformed,
+2. JSONL connectors count committed unique records. Malformed,
    duplicate, semantically duplicate, partial, and unexpected rows must not
-   silently inflate progress.
+   silently inflate progress. Unexpected records are reported separately and
+   excluded from saved/accepted totals; declared skipped outcomes remain counted
+   as committed records and appear in excluded totals and per-group breakdowns.
 3. Keep total, experiment, and stage progress distinct. Evaluation percentages
    are never labeled as elapsed-time percentages.
 4. Artifact-only stages show state, not invented percentages. Never extrapolate
@@ -62,6 +64,12 @@ library's identity.
     identities; never signal dmux or its ancestors. Confirmation names the stage
     or experiment. Do not stop its parent queue implicitly or auto-escalate to
     SIGKILL. Describe a sent SIGTERM as a request, not verified termination.
+12. The default Python API, CLI, and UI must work with the generic filesystem
+    adapter alone. Domain-specific schemas belong in optional external adapters;
+    never import them from the core, UI, package exports, or built-in registry.
+13. Standalone experiments are first-class. A scheduler is optional; only warn
+    about a missing scheduler when the plan explicitly declares one. Read logs
+    only from configured paths rather than guessing a project-specific filename.
 
 ## Visual contract
 
@@ -77,9 +85,9 @@ library's identity.
 
 ## Testing and changes
 
-Run `pytest -q` after every behavior change. The first 40 tests are the extracted
-compatibility contract. Generic tests must use tiny deterministic projects in
-temporary directories; do not download models or datasets.
+Run `pytest -q` after every behavior change. Keep integrity, progress, liveness,
+and terminal regression coverage in generic fixtures. Tests must use tiny
+deterministic projects in temporary directories; do not download models or datasets.
 tmux integration must use an explicit private temporary socket and may only kill
 the server that the test created. Never touch the user's tmux server.
 
@@ -88,5 +96,8 @@ logic belongs in an adapter, reusable byte/file behavior in connectors, and all
 rendering in the UI. New third-party adapter support should use the
 `dmux.adapters` entry-point group.
 
-Do not publish the package or edit/move/delete files in
-`/home/ignacio/llm_adhd` as part of dmux development.
+Use experiment/stage terminology in new APIs and documentation. Preserve
+documented generic-plan and CLI aliases so existing user integrations keep working.
+
+Do not publish the package or edit/move/delete any original research repository,
+monitored project, or running experiment as part of dmux development.

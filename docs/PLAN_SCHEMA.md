@@ -1,6 +1,6 @@
 # Declarative filesystem plan
 
-The `filesystem` adapter reads `QUEUE/plan.json`. The plan describes existing
+The `filesystem` adapter reads `PLAN_DIR/plan.json`. The plan describes existing
 outputs; dmux never writes any of the paths in it.
 
 ## Minimal example
@@ -10,15 +10,14 @@ outputs; dmux never writes any of the paths in it.
   "name": "Vision sweep",
   "project_root": "/srv/ml/vision",
   "unit": "epochs",
-  "entity_heading": "RUN",
+  "entity_heading": "EXPERIMENT",
   "disk_warning_gib": 10,
-  "pause_file": "PAUSE",
-  "roster": [
+  "experiments": [
     {"tag": "resnet50", "label": "ResNet-50"}
   ],
   "tasks": [
     {
-      "run": "resnet50",
+      "experiment": "resnet50",
       "stage": "train",
       "label": "Train classifier",
       "directory": "outputs/resnet50",
@@ -51,17 +50,19 @@ outputs; dmux never writes any of the paths in it.
 }
 ```
 
-`model` is accepted as an alias for `run`, and `name` as an alias for `stage`,
-which makes existing queue plans easy to adapt.
+`experiment` names a run; `run`, `model`, and `group` are accepted aliases.
+`name` is accepted as an alias for `stage`. The optional `experiments` catalog
+supplies display labels; `roster` is accepted for earlier plans. An experiment
+listed without any tasks is shown as blocked, with an optional `reason`.
 Task-local `label` values can differ even when tasks share a stage. Optional
 `stage_labels` supplies the shared headings used by the overview columns.
 
 ## Path rules
 
-- `--queue` locates the directory containing `plan.json`.
+- `--plan-dir` locates the directory containing `plan.json`; `--queue` is an alias.
 - An explicit `--project-root` has highest precedence.
 - Otherwise, `project_root` in the plan is used. A relative declared root is
-  resolved from the queue directory.
+  resolved from the plan directory.
 - Without either, relative task directories use the launch directory and dmux
   emits a warning. Portable integrations should always choose one of the first
   two forms.
@@ -94,7 +95,7 @@ Each task can select a named project whose code and outputs live separately:
   "tasks": [
     {
       "project": "vision",
-      "run": "clip",
+      "experiment": "clip",
       "stage": "evaluate",
       "directory": "run-1",
       "progress": {"type": "json", "path": "progress.json"},
@@ -109,7 +110,7 @@ Project roots resolve relative to the plan's resolved project root. Each result
 location resolves from its own project's root. Named projects retain their own
 locations even when the CLI overrides the default project's result directory.
 Runs become `PROJECT/RUN` tags (for example `vision/clip`) to avoid merging runs
-with identical names. Roster and status records can also declare `project`.
+with identical names. Experiment catalog and status records can also declare `project`.
 An empty results directory is allowed; missing artifacts remain pending.
 
 ## Detail metadata and outputs
@@ -130,11 +131,11 @@ Use `tmux_session` on a project or task, or supply a plan-wide configuration:
 
 Task links override project defaults; a `tmux.links` entry overrides both and
 an explicit `--tmux-link TAG=TARGET` overrides the plan. Relative socket paths
-are resolved from the queue directory. Links select navigation destinations and
+are resolved from the plan directory. Links select navigation destinations and
 never prove that an experiment process is alive.
 
-This distinction fixes the original extraction issue: an absolute queue path no
-longer forces paths inside its plan to resolve against dmux's source tree.
+An absolute plan location does not change the base for relative task outputs;
+those still use the project's explicitly configured root or results directory.
 
 ## Progress connectors
 
@@ -150,7 +151,8 @@ rotation, or truncation resets the cursor and counts. Fields:
   evaluation written under another primary ID.
 - `status_field`, `valid_statuses`, `excluded_statuses`: optional outcome rules.
 - `group_field`, `group_label`, `expected_by_group`: optional detail-panel split.
-- `allowed_values`: optional field-to-allowed-values map; violations are flagged.
+- `allowed_values`: optional field-to-allowed-values map; violations are flagged
+  and excluded from saved/accepted counts.
 
 Malformed, duplicate, unexpected, and partial records never silently inflate
 progress. Use JSONL for scientific evaluation counts where uniqueness matters.
@@ -180,20 +182,27 @@ Artifact-only tasks display state, never an invented percentage.
 When a numeric task also declares `completion`, both the exact count and the
 validated completion artifact are required.
 
-## Optional queue state
+## Optional scheduler state
 
 If present, `status.json` may contain an advisory `active` record and
 `completed_tasks`. `completion.json` may contain final task exit records. Each
-record can use either `model`/`name` or `run`/`stage`. Advisory state never proves
+record uses `experiment`/`stage` (earlier aliases are also accepted). Advisory state never proves
 liveness; dmux checks actual processes declared by `queue_process` and each
 task's `process` block.
+
+Standalone experiments need only their task's `process` block. Set
+`queue_process` only when a scheduler should be monitored, for example
+`{"script": "scheduler.py", "output_flag": "--plan-dir"}`. Its output argument
+must resolve to this plan directory. Only explicitly configured schedulers
+produce missing-scheduler warnings.
 
 ## Logs and processes
 
 `log` is tailed with bounded reads and ANSI/control sanitization. Process
 definitions may specify `script`, `output_flag`, and `default_output`. Only an
 exact configured script basename is considered, and destination paths must match
-the resolved task or queue path.
+the resolved task or plan-directory path. Logs are read only when a task declares
+`log`; dmux does not guess filenames.
 
-`pause_file` is optional and relative to the queue. dmux never creates or removes
+`pause_file` is optional and relative to the plan directory. dmux never creates or removes
 it; if omitted, the generic adapter does not infer pause state from filenames.

@@ -11,8 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-from monitor_tmux import PANE_FORMAT, TmuxNavigator, associate, parse_links, parse_panes, render_picker
+from dmux.tmux import PANE_FORMAT, TmuxNavigator, associate, parse_links, parse_panes, render_picker
 
 PANES = "$1\t@2\t%3\t100\ttrain\t0\t0\t1\t1\tbash\n$2\t@4\t%5\t200\tmonitor\t0\t0\t1\t1\tpython\n"
 
@@ -25,20 +24,20 @@ def test_panes_require_numeric_ids_and_render_names_as_plain_text():
 
 
 def test_links_are_explicit_and_unique():
-    assert parse_links(["e4b=train:0.0", "*=logs"]) == {"e4b":"train:0.0", "*":"logs"}
-    for values in [["bad"], ["e4b="], ["e4b=train", "e4b=other"]]:
+    assert parse_links(["classifier=train:0.0", "*=logs"]) == {"classifier":"train:0.0", "*":"logs"}
+    for values in [["bad"], ["classifier="], ["classifier=train", "classifier=other"]]:
         with pytest.raises(ValueError):
             parse_links(values)
 
 
-def test_association_uses_ancestry_not_model_name_guessing():
-    tasks = [{"model":"e4b", "pid":300}, {"model":"phi4", "pid":None}]
+def test_association_uses_ancestry_not_experiment_name_guessing():
+    tasks = [{"model":"classifier", "pid":300}, {"model":"regressor", "pid":None}]
     links = associate(parse_panes(PANES), tasks, {}, parent_lookup=lambda pid:[pid,100,1])
-    assert links["e4b"]["pane"]["session"] == "train" and "phi4" not in links
-    links = associate(parse_panes(PANES), tasks, {"e4b":"monitor"})
-    assert links["e4b"]["source"] == "explicit link"
-    links = associate(parse_panes(PANES), tasks, {"e4b":"missing"})
-    assert links["e4b"]["pane"] is None
+    assert links["classifier"]["pane"]["session"] == "train" and "regressor" not in links
+    links = associate(parse_panes(PANES), tasks, {"classifier":"monitor"})
+    assert links["classifier"]["source"] == "explicit link"
+    links = associate(parse_panes(PANES), tasks, {"classifier":"missing"})
+    assert links["classifier"]["pane"] is None
 
 
 def fake_nav(*, clients="$2\t/dev/pts/7\n", inside=False, panes=PANES, **kwargs):
@@ -115,6 +114,7 @@ def private_tmux(tmp_path):
     socket = tmp_path / "test.sock"
     env = {k:v for k,v in os.environ.items() if k not in {"TMUX","TMUX_PANE"}}
     env["TERM"] = "xterm-256color"
+    env["PYTHONPATH"] = str(ROOT / "src")
     prefix = ["tmux", "-S", str(socket)]
     def tmux(*args):
         return subprocess.run([*prefix, *args], env=env, capture_output=True, text=True, timeout=3, check=True).stdout
@@ -136,11 +136,11 @@ def test_real_attach_or_switch_and_return_restores_terminal(private_tmux,tmp_pat
     socket, env, tmux = private_tmux
     queue = tmp_path / "queue"
     queue.mkdir()
-    original = json.dumps({"tasks":[], "roster":[{"tag":"e4b"}]})
+    original = json.dumps({"tasks":[], "experiments":[{"tag":"classifier"}]})
     (queue / "plan.json").write_text(original)
     baseline_pane = tmux("list-panes", "-a", "-F", "#{pane_id}:#{pane_pid}").strip()
-    command = [sys.executable, str(ROOT / "scripts/monitor_supergpqa.py"), "--queue", str(queue),
-               "--tmux-socket", str(socket), "--tmux-link", "e4b=train", "--no-gpu", "--color", "always"]
+    command = [sys.executable, "-m", "dmux", "--plan-dir", str(queue),
+               "--tmux-socket", str(socket), "--tmux-link", "classifier=train", "--no-gpu", "--color", "always"]
     if inside:
         tmux("new-session", "-d", "-s", "dashboard", *command)
         command = ["tmux", "-S", str(socket), "attach-session", "-t", "dashboard"]
@@ -159,7 +159,7 @@ def test_real_attach_or_switch_and_return_restores_terminal(private_tmux,tmp_pat
                 return
         pytest.fail(f"Missing terminal text {needle!r}: {bytes(output[-2000:])!r}")
     try:
-        wait_for(b"SUPERGPQA")
+        wait_for(b"DMUX")
         os.write(master,b"t")
         wait_for(b"SESSION & PANE PICKER")
         # Explicit link is preselected even when dashboard sorts before train.
@@ -176,7 +176,7 @@ def test_real_attach_or_switch_and_return_restores_terminal(private_tmux,tmp_pat
         if inside:
             client = tmux("list-clients", "-F", "#{client_tty}").strip()
             tmux("switch-client", "-c", client, "-t", "dashboard")
-            wait_for(b"SUPERGPQA")
+            wait_for(b"DMUX")
             os.write(master,b"q")
             # The test dashboard session ends, leaving its client on train.
             time.sleep(.2)

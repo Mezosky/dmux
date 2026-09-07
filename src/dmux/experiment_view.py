@@ -117,7 +117,7 @@ def render_stop_confirmation(request, typed, *, height=24):
         text.append(f"  PID {target.pid}: {' '.join(target.command)[:100]}\n", style="grey74")
     if len(request.targets) > limit:
         text.append(f"  … and {len(request.targets) - limit} more. Enlarge the terminal to review all.\n", style="yellow")
-    text.append("The parent queue may schedule additional work. Chats and results are kept.\n", style="yellow")
+    text.append("Chats and results are kept. A scheduler, if used, may schedule more work.\n", style="yellow")
     text.append(f"Type {request.label} and press Enter: ", style="white")
     text.append(typed + "▏", style="bold bright_cyan")
     return Panel(Group(text, Text("Esc cancels; no automatic force kill", style="grey70")), border_style="red")

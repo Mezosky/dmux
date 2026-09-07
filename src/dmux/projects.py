@@ -53,5 +53,16 @@ def project_paths(plan: Mapping, root: Path, results_dir=None) -> dict[str | Non
 
 
 def run_tag(record: Mapping) -> str:
-    run = record.get("model", record.get("run", record.get("group", "default")))
+    run = record.get("experiment", record.get("run", record.get("model", record.get("group", "default"))))
     return f'{record["project"]}/{run}' if record.get("project") else run
+
+
+def experiment_roster(plan: Mapping) -> list:
+    """Read the generic experiment catalog, accepting the earlier roster alias."""
+    entries = plan.get("experiments", plan.get("roster", []))
+    if not isinstance(entries, list) or any(
+        not isinstance(row, Mapping) or not isinstance(row.get("tag"), str) or not row["tag"]
+        for row in entries
+    ):
+        raise ValueError("plan.experiments must be a list of objects with non-empty tags")
+    return entries

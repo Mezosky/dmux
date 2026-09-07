@@ -175,7 +175,7 @@ def test_kill_command_scopes_to_experiment_and_requires_exact_confirmation(live_
         main(["kill", "--queue", str(mon.queue), "--model", "selected", "--confirm", "wrong"])
     assert error.value.code == 2
     assert all(process.poll() is None for process in processes)
-    main(["kill", "--queue", str(mon.queue), "--model", "selected", "--confirm", "selected"])
+    main(["kill", "--plan-dir", str(mon.queue), "--experiment", "selected", "--confirm", "selected"])
     processes[0].wait(timeout=5)
     assert "SIGTERM requested" in capsys.readouterr().out
     assert processes[1].poll() is None
