@@ -47,6 +47,9 @@ def main(argv=None):
     parser.add_argument("--output-flag", default="--out", help="Use --output-flag=--output-dir for a custom flag")
     parser.add_argument("--yes", action="store_true", help="Use supplied flags/defaults without prompting")
     parser.add_argument("--dry-run", action="store_true", help="Print plan JSON without creating anything")
+    parser.add_argument("--register", action="store_true", help="Also register the new plan in the global home screen")
+    parser.add_argument("--metric-field", action="append", default=[],
+                        help="Numeric field in the JSON/JSONL source to show in details; repeatable")
     args = parser.parse_args(argv)
     interactive = not args.yes and not args.dry_run
     if interactive and not sys.stdin.isatty():
@@ -61,7 +64,7 @@ def main(argv=None):
         parser.error("--expected must be non-negative")
     try:
         if interactive:
-            print(f"DMUX / CONNECT A PROJECT\nProject: {root}\nOnly a new plan.json will be written.")
+            print(f"DMUX / CONNECT A PROJECT\nProject: {root}\nA new plan.json will be created; experiment outputs are unchanged.")
         results = resolve_path(
             str(args.results_dir) if args.results_dir else
             _ask("Results directory", "outputs", interactive=interactive), root)
@@ -130,6 +133,15 @@ def main(argv=None):
             if interactive:
                 flag = _ask("Worker output-directory flag", flag, interactive=True)
             task["process"] = {"script": script, "output_flag": flag}
+        fields_to_show = args.metric_field
+        if interactive and kind in {"json", "jsonl"} and not fields_to_show:
+            entered = _ask("Metric field(s) for experiment details, comma separated", interactive=True)
+            fields_to_show = [value.strip() for value in entered.split(",") if value.strip()]
+        if fields_to_show:
+            if kind not in {"json", "jsonl"}:
+                parser.error("--metric-field uses the JSON/JSONL source; configure task.metrics for other result files")
+            task["metrics"] = [{"label": field.split(".")[-1].replace("_", " ").title(),
+                                "type": kind, "path": source, "field": field} for field in fields_to_show]
         plan = {"name": root.name, "project_root": str(root), "results_dir": str(results),
                 "tasks": [task]}
         FilesystemAdapter().configure(plan)
@@ -147,7 +159,19 @@ def main(argv=None):
         print(f"Check: dmux doctor {flags}\nOpen:  dmux watch {flags}")
         if not script:
             print("PID matching is not configured; add a task.process block to monitor worker liveness.")
+        register = args.register or (interactive and _ask("Register this project in the global dmux home? yes/no",
+                                                         "no", interactive=True).lower() in {"yes", "y"})
+        if register:
+            from .catalog import ProjectCatalog
+
+            try:
+                entry = ProjectCatalog().add(plan_path, project_root=root)
+                print(f'Registered {entry["name"]}. Run dmux from anywhere.')
+            except (ValueError, OSError) as exc:
+                parser.exit(2, f"Plan was created, but registration failed: {exc}\nUse dmux add with --name to retry.\n")
+        else:
+            print(f"Global home: dmux add {shlex.quote(str(plan_path))}")
     except (ValueError, OSError) as exc:
         parser.exit(2, f"Setup failed: {exc}\n")
     except (EOFError, KeyboardInterrupt):
-        parser.exit(130, "\nCancelled; no plan was written.\n")
+        parser.exit(130, f"\nCancelled; {'plan retained at ' + str(plan_path) if plan_path.exists() else 'no plan was written'}.\n")

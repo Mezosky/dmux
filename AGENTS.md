@@ -18,6 +18,9 @@ sequence, or results layout.
   adapters discovered through entry points.
 - `src/dmux/monitor.py`: adapter-neutral snapshot aggregation and path policy.
 - `src/dmux/projects.py`: per-project code/results locations and run namespaces.
+- `src/dmux/catalog.py`: versioned per-user registrations; locked atomic updates.
+- `src/dmux/home.py`: global searchable project/run overview and recent tabs.
+- `src/dmux/metrics.py`: lazy bounded JSON/JSONL/CSV result summaries and sparklines.
 - `src/dmux/system.py`: process and GPU observation; never process control.
 - `src/dmux/ui.py`: responsive Rich dashboard and experiment tabs.
 - `src/dmux/experiment_view.py`: experiment details and configured output previews.
@@ -78,12 +81,34 @@ sequence, or results layout.
     when any counted stage lacks a denominator. Show saved counts without
     percentages. Artifact-only stages do not enter numeric denominators.
 15. `init` may create only a new plan and its parent directory after explicit
-    confirmation or `--yes`. Never overwrite/merge existing plans or write to
-    experiment outputs. Dry-run and cancellation write nothing. `doctor` is
-    strictly read-only and must never launch project code or external tools.
+    confirmation or `--yes`, plus an explicit optional registration. Never
+    overwrite/merge existing plans or write to experiment outputs. Dry-run and
+    pre-creation cancellation write nothing. Registration failure leaves the
+    newly created plan intact. `doctor` is strictly read-only and must never
+    launch project code or external tools.
 16. Live demo workers run independently of the dashboard, only in fresh demo
     output locations. Quitting never signals them or removes their files. Tests
     clean up only their own exact worker identities/private tmux server.
+17. Bare `dmux` is the global home. Explicit scoped flags and `watch`, `snapshot`,
+    `json`, `kill`, and `sessions` retain their local/project semantics. Registry
+    entries reference plans; never scan the computer, copy results into the
+    registry, or infer permission to register projects. Removing a registration
+    affects only discovery, not files, jobs, or tmux sessions.
+18. Registration IDs plus stable experiment tags identify runs. Display labels
+    may change without changing identity. Repeated executions use distinct tags
+    and output directories. Reject duplicate canonical experiment/stage keys.
+19. Global summaries show stage states, not percentages or sums of incompatible
+    units. Missing/broken projects stay visible and must not block healthy ones.
+    Share host sampling; bound refresh work and back off completed projects.
+20. Result metrics load only in an explicitly opened experiment detail view.
+    They never enter progress, completion, or liveness decisions. No guessed
+    loss/accuracy fields, synthetic historical curves, inferred goals, or
+    all-time-best claims from a recent window. JSON scalar summaries remain
+    latest-only. Plot sample order honestly; do not imply time-scaled spacing.
+21. Registry/state paths honor absolute XDG settings. Catalog writes use a
+    lock and atomic replace, fail closed on invalid versions/data, and reject
+    target symlinks. Tests isolate all XDG locations, never the real user's
+    catalog. No result data or cached PIDs are persisted in UI state.
 
 ## Visual contract
 
@@ -96,6 +121,12 @@ sequence, or results layout.
 - Error/integrity states outrank decoration. Use color plus text/symbols, never
   color alone.
 - Maintain the cyan/dark visual language represented by `logo.png`.
+- Global home uses a searchable grouped list and at most eight recent tabs.
+  Enter opens details; Esc/q returns home. Tab selects recent entries and x
+  closes only the recent tab. Keep these separate from unregister and stop.
+- Result plots are small cyan sparklines with latest values and explicit window
+  ranges. Compact layouts prioritize result/integrity information over previews;
+  m pages metrics. Unknown/malformed results are visible, not silently filled.
 
 ## Testing and changes
 

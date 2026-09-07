@@ -35,14 +35,41 @@ optional external tools; no model weights or inference frameworks are imported.
 ## Try it in one command
 
 ```bash
-dmux demo --live
+dmux demo --live --register
 ```
 
 This creates a fresh temporary project, starts independent demo workers, and
 opens the dashboard in a terminal. The numeric workloads are paced over roughly
 five minutes so there is time to explore. They finish on their own; `q` closes
 the dashboard without stopping them. The command prints the project location
-and a command to reopen it. No model downloads or GPU are needed.
+and a command to reopen it. `--register` also adds the demo to the global home:
+after leaving the tour, run `dmux` from any directory to browse it again.
+No model downloads or GPU are needed.
+
+## One home for your experiments
+
+```bash
+dmux add /work/vision
+dmux add /work/language
+dmux
+```
+
+Bare `dmux` opens a global, searchable overview of explicitly registered plans,
+grouped by project. Use `/` to search, `f` to filter running/attention states,
+and Enter to open an experiment. Its details include optional small result plots.
+Esc returns home; `t` opens that project's tmux browser. Tab selects a recently
+opened experiment; `x` closes its recent tab without stopping jobs.
+
+The home screen compares stage states, never a combined percentage of unrelated
+epochs, predictions, and checkpoints. Missing projects remain visible as
+unavailable. Nothing is discovered by scanning your whole computer.
+
+`dmux remove vision` only unregisters the project; jobs, sessions, plans, and
+results stay intact. See [global registration and navigation](docs/GLOBAL_HOME.md).
+
+Existing scoped commands keep working: `dmux watch`, `dmux --plan-dir PATH`,
+and `dmux json` still use a project plan. For a global snapshot use
+`dmux home --once` or `dmux home --json`.
 
 ### Heterogeneous demo outputs
 
@@ -107,7 +134,7 @@ Closing dmux leaves that process running; explicit stops require confirmation.
 From your ML project directory:
 
 ```bash
-dmux init --results-dir /path/to/your/results
+dmux init --results-dir /path/to/your/results --register
 dmux doctor
 dmux
 ```
@@ -115,7 +142,8 @@ dmux
 The setup wizard asks which file or pattern supplies progress, suggests fields
 from a bounded sample, and previews the plan before creating `monitor/plan.json`.
 It never overwrites an existing plan, edits results, or launches project code.
-`dmux` discovers that plan automatically; no training-code imports are required.
+`--register` adds the plan to the global home; `dmux watch` discovers the local
+plan without registration. No training-code imports are required.
 For unattended setup use `--yes`, or `--dry-run` to preview JSON without writing.
 
 `dmux doctor` checks the resolved paths, counters, record integrity, configured
@@ -179,6 +207,30 @@ generated files:
 
 Previews read bounded text from configured files. Binary artifacts are listed
 by path and size.
+
+### Small result plots, only when opened
+
+Use a task's optional `metrics` list to choose what interests you. For example,
+with JSONL records containing `step`, `loss`, and `accuracy`:
+
+```json
+"metrics": [
+  {"label": "Loss", "path": "history.jsonl", "field": "loss", "x_field": "step", "goal": "min"},
+  {"label": "Accuracy", "path": "history.jsonl", "field": "accuracy", "x_field": "step",
+   "goal": "max", "scale": 100, "unit": "%", "precision": 1}
+]
+```
+
+Enter opens small cyan sparklines with the latest value, the visible-window
+best when a goal is configured, and a value range. `m` pages through additional
+metrics. Loss, accuracy, perplexity, MSE, throughput, and arbitrary numeric fields
+work the same way; none are hard-coded into the core.
+
+Metric sources are read only inside experiment details—not by the global home
+or project overview. JSON summaries show a value without inventing history;
+JSON arrays, JSONL, and CSV can supply historical samples. Plots use bounded,
+cached windows and never change completion counts. See the
+[result configuration guide](docs/RESULTS.md) for formats, limits, and examples.
 
 <details>
 <summary>What if output previews are not configured?</summary>

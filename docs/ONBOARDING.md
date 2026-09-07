@@ -4,10 +4,14 @@ dmux consumes files your experiment already writes. It does not require an SDK,
 launch the project, or load its models. Start from your project directory:
 
 ```bash
-dmux init --results-dir /data/my-results
+dmux init --results-dir /data/my-results --register
 dmux doctor
 dmux
 ```
+
+`--register` adds the new plan to the global home. Bare `dmux` lists registered
+projects from anywhere. Use `dmux watch` for only the current project's plan,
+without registration. See [global navigation](GLOBAL_HOME.md).
 
 The wizard samples at most 64 KiB from a candidate file and examines at most 500
 directory entries, up to two levels below the results location. Discovery is a
@@ -15,8 +19,10 @@ hint, not a framework detector: confirm the source and field names. It skips
 hidden entries and directory symlinks. Explicit paths can point elsewhere.
 CSV/log/binary files are not automatically interpreted as progress counters.
 
-Review the generated JSON before confirming. Setup creates only a new
-`monitor/plan.json` (and its directory), never experiment outputs. Existing plans
+Review the generated JSON before confirming. Setup creates a new
+`monitor/plan.json` (and its directory), never experiment outputs. Registration
+is a separate explicit option or post-setup prompt that updates only the user's
+dmux catalog. Existing plans
 are refused, including symlinks; choose another `--plan-dir` instead. Cancellation
 or `--dry-run` writes nothing. Configuration edits after setup are deliberate
 manual changes; the wizard does not merge or overwrite existing plans.
@@ -60,6 +66,10 @@ dmux init --format completion --source DONE --yes
 
 These are alternative plans, not commands to run into the same existing plan.
 Each uses `outputs/` by default; pass `--results-dir` for your actual location.
+`--yes` alone does not register a project. Add `--register` or later run
+`dmux add /path/to/project`. If the chosen JSON/JSONL file also contains useful
+metrics, use repeatable `--metric-field loss` / `--metric-field accuracy` options
+to show them only inside the experiment detail view. See [result plots](RESULTS.md).
 Add `--log train.log` for log tails. For worker detection:
 
 ```bash
@@ -119,7 +129,7 @@ file. File-count scans honor the configured `max_files` limit.
 ## Explore without a real project
 
 ```bash
-dmux demo --live
+dmux demo --live --register
 dmux demo --live --tmux
 dmux demo --quick --project-root /tmp/my-fresh-demo
 dmux doctor --project-root /tmp/my-fresh-demo

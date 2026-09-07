@@ -50,6 +50,8 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
                 "directory": "tiny_clip",
                 "expected": steps,
                 "log": "evaluate.log",
+                "metrics": [{"label": "Accuracy", "type": "jsonl", "path": "predictions.jsonl",
+                             "field": "accuracy", "x_field": "step", "goal": "max", "scale": 100, "unit": "%", "precision": 1}],
                 "progress": {
                     "type": "jsonl",
                     "path": "predictions.jsonl",
@@ -70,6 +72,10 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
                 "directory": "tiny_llm",
                 "expected": steps,
                 "log": "train.log",
+                "metrics": [
+                    {"label": "Loss", "type": "jsonl", "path": "history.jsonl", "field": "loss", "x_field": "epoch", "goal": "min"},
+                    {"label": "Perplexity", "type": "jsonl", "path": "history.jsonl", "field": "perplexity", "x_field": "epoch", "goal": "min"},
+                ],
                 "progress": {
                     "type": "json",
                     "path": "progress.json",
@@ -85,12 +91,15 @@ def plan(steps: int, queue: Path, results_dir: Path | None = None) -> dict:
                 "directory": "tabular",
                 "expected": steps,
                 "progress": {"type": "files", "glob": "checkpoint-*.json"},
+                "metrics": [{"label": "MSE", "type": "csv", "path": "history.csv", "field": "mse", "x_field": "step", "goal": "min"}],
             },
             {
                 "experiment": "audio",
                 "stage": "evaluate",
                 "label": "Classify synthetic frequencies",
                 "directory": "audio",
+                "metrics": [{"label": "Accuracy", "type": "json", "path": "metrics.json", "field": "accuracy",
+                             "goal": "max", "scale": 100, "unit": "%", "precision": 1}],
                 "completion": {
                     "type": "file",
                     "path": "DONE",
@@ -123,11 +132,15 @@ def run_tiny_clip(root: Path, steps: int, delay: float) -> None:
         "blue": (0.05, 0.05, 1.0),
     }
     names = tuple(colors)
+    correct = 0
     for index in range(steps):
         target = names[index % len(names)]
         scores = {name: cosine(colors[target], embedding) for name, embedding in colors.items()}
         prediction = max(scores, key=scores.get)
+        correct += prediction == target
         row = {
+            "step": index + 1,
+            "accuracy": correct / (index + 1),
             "sample_id": f"sample-{index:03d}",
             "image_id": f"solid-{target}-{index:03d}",
             "prompt": f"a {target} square",
@@ -161,6 +174,9 @@ def run_tiny_llm(root: Path, steps: int, delay: float) -> None:
             probability = (transitions[left][right] + 1) / (total + len(vocabulary))
             negative_log_likelihood -= math.log(probability)
         perplexity = math.exp(negative_log_likelihood / (len(tokens) - 1))
+        with (output / "history.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"epoch": epoch, "loss": negative_log_likelihood / (len(tokens) - 1),
+                                     "perplexity": perplexity}) + "\n")
         write_json(
             output / "progress.json",
             {
@@ -190,6 +206,10 @@ def run_tabular_regression(root: Path, steps: int, delay: float) -> None:
         weight -= 0.1 * gradient_w
         bias -= 0.1 * gradient_b
         mse = sum(((weight * x + bias) - y) ** 2 for x, y in points) / len(points)
+        with (output / "history.csv").open("a", encoding="utf-8") as handle:
+            if step == 1:
+                handle.write("step,mse\n")
+            handle.write(f"{step},{mse}\n")
         write_json(
             output / f"checkpoint-{step:03d}.json",
             {"step": step, "weight": weight, "bias": bias, "mse": mse},
@@ -261,6 +281,7 @@ def main(argv=None) -> None:
     parser.add_argument("--tmux", action="store_true", help="Create a session per experiment with chat and worker windows")
     parser.add_argument("--tmux-socket", type=Path, help="Server to create demo sessions on")
     parser.add_argument("--session-prefix", default="dmux", help="Prefix for the four session names")
+    parser.add_argument("--register", action="store_true", help="Show this demo project in the global home screen")
     args = parser.parse_args(argv)
     args.steps = args.steps if args.steps is not None else 300 if args.live else 8
     args.delay = args.delay if args.delay is not None else 1.0 if args.live else 0.0 if args.quick else 0.15
@@ -281,8 +302,8 @@ def main(argv=None) -> None:
                             "description": task["label"]}
         task["outputs"] = {
             "tiny_clip": ["predictions.jsonl", "evaluate.log"],
-            "tiny_llm": ["progress.json", "model.json", "train.log"],
-            "tabular": ["checkpoint-*.json"],
+            "tiny_llm": ["progress.json", "model.json", "train.log", "history.jsonl"],
+            "tabular": ["checkpoint-*.json", "history.csv"],
             "audio": ["metrics.json"],
         }[task["experiment"]]
         if args.live or args.tmux:
@@ -333,6 +354,16 @@ def main(argv=None) -> None:
         update_status(queue, None, None)
     print(f"Tiny model zoo ready at {root}")
     print(f"dmux watch --project-root {shlex.quote(str(root))} --plan-dir monitor")
+    if args.register:
+        from .catalog import ProjectCatalog
+
+        try:
+            entry = ProjectCatalog().add(queue / "plan.json")
+            print(f'Registered {entry["name"]} in the global dmux home.')
+        except (ValueError, OSError) as exc:
+            parser.exit(2, f"Demo retained at {root}; registration failed: {exc}\n")
+    else:
+        print(f"Global home: dmux add {shlex.quote(str(root))}")
     if args.tmux:
         print("Press t to browse the linked sessions; chat windows are ready for your AI CLI.")
     if args.live:

@@ -200,6 +200,7 @@ class Monitor:
                                  **plan.get("projects", {}).get(raw_task.get("project"), {}).get("metadata", {}),
                                  **task.get("metadata", {})},
                     "outputs": list(task.get("outputs", [])),
+                    "metrics": list(task.get("metrics", [])),
                     "log": str(log) if log is not None else None,
                 }
             )

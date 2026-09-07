@@ -7,6 +7,7 @@ from itertools import islice
 import json
 import os
 from pathlib import Path
+from .connectors import open_regular
 
 
 def sample_file(path: Path, max_bytes: int = 65_536) -> tuple[str, dict | None]:
@@ -16,7 +17,7 @@ def sample_file(path: Path, max_bytes: int = 65_536) -> tuple[str, dict | None]:
     try:
         if not path.is_file():
             return fallback, None
-        with path.open("rb") as handle:
+        with open_regular(path) as handle:
             raw = handle.read(max_bytes)
         if fallback != "jsonl":
             value = json.loads(raw)

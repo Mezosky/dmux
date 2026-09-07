@@ -45,7 +45,8 @@ def output_previews(task):
     return previews
 
 
-def render_detail(snapshot, model, *, presentation, stage=None, height=40, notice=None):
+def render_detail(snapshot, model, *, presentation, stage=None, height=40, width=80, notice=None,
+                  metric_reader=None, metric_offset=0, return_home=False):
     from rich.console import Group
     from rich.panel import Panel
     from rich.table import Table
@@ -61,9 +62,10 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, notic
     for heading in ("STAGE", "STATE", "PID", "ELAPSED"):
         table.add_column(heading)
     tasks = [item for item in snapshot["tasks"] if item["model"] == model]
+    has_metrics = bool(task.get("metrics"))
     # Keep the selected stage in view even for a large pipeline.
     index = tasks.index(task)
-    count = max(1, min(8, height // 5))
+    count = max(1, min(2 if has_metrics and height < 40 else 4 if has_metrics else 8, height // 5))
     start = max(0, index - count // 2)
     for item in tasks[start:start + count]:
         table.add_row(Text(("› " if item is task else "  ") + task_label(item, presentation)),
@@ -78,15 +80,21 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, notic
         parts.append(text)
     elif progress is not None:
         parts.append(Text(f'Stage progress: {(progress or {}).get("saved", 0):,} saved · total unknown'))
+    if has_metrics:
+        from .metrics import MetricReader, render_metrics
+
+        parts.append(render_metrics(task, metric_reader or MetricReader(), width=width,
+                                    limit=1 if height < 24 else 2 if height < 40 else 3,
+                                    offset=metric_offset))
     if task.get("process_command"):
         parts.append(Text("Process: " + " ".join(task["process_command"]), style="grey62",
                           no_wrap=True, overflow="ellipsis"))
     metadata = task.get("metadata") or {}
-    if metadata:
+    if metadata and (not has_metrics or height >= 32):
         # Per-field lines preserve the values on compact terminals.
-        lines = [f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in list(metadata.items())[:5]]
+        lines = [f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in list(metadata.items())[:2 if has_metrics else 5]]
         parts.append(Panel(Text("\n".join(lines), overflow="ellipsis"), title="Metadata", border_style="grey35"))
-    if height >= 28:
+    if height >= (45 if has_metrics else 28):
         previews = output_previews(task)
         lines = []
         for name, size, preview in previews[:2 if height < 45 else 4]:
@@ -96,14 +104,15 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, notic
             lines = ["No configured outputs are present yet." if task.get("outputs")
                      else "No output previews configured; add outputs to this task in plan.json."]
         parts.append(Panel(Text("\n".join(lines), overflow="ellipsis"), title="Outputs", border_style="grey35"))
-    if height >= 40:
+    if height >= (55 if has_metrics else 40):
         recent = tail_log(task["log"], n=3)
         if recent:
             parts.append(Panel(Text("\n".join(recent)), title="Recent log", border_style="grey35"))
     if notice:
         parts.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
     parts.append(Text("[ ] stage · t tmux · k stop stage · K stop experiment", style="grey70"))
-    parts.append(Text("Esc/q back · x hide tab (u restores tabs)", style="grey70"))
+    parts.append(Text(("Esc/q home" if return_home else "Esc/q back") +
+                      " · m next results · x hide tab (u restores tabs)", style="grey70"))
     return Panel(Group(*parts), border_style="grey35")
 
 

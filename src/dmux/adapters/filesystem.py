@@ -11,6 +11,7 @@ from typing import Mapping, Sequence
 from ..connectors import IncrementalJsonlReader, JsonCache
 from .base import Presentation, command_option, resolve_path
 from ..projects import experiment_roster, run_tag
+from ..metrics import validate_metrics
 
 
 def _field(value, dotted: str, default=None):
@@ -231,6 +232,7 @@ class FilesystemAdapter:
         tasks = plan.get("tasks", [])
         if not isinstance(tasks, list):
             raise ValueError("plan.tasks must be a list")
+        identities = set()
         for index, task in enumerate(tasks):
             prefix = f"plan.tasks[{index}]"
             if not isinstance(task, Mapping):
@@ -243,6 +245,15 @@ class FilesystemAdapter:
             stage = task.get("name", task.get("stage", "run"))
             if not isinstance(run, str) or not run or not isinstance(stage, str) or not stage:
                 raise ValueError(f"{prefix} experiment and stage must be non-empty strings")
+            if not isinstance(task.get("project"), (str, type(None))):
+                raise ValueError(f"{prefix}.project must be a string")
+            key = (run_tag(task), stage)
+            if key in identities:
+                raise ValueError(f"{prefix} repeats an experiment/stage identity; use a distinct experiment tag for another execution")
+            identities.add(key)
+            validate_metrics(task.get("metrics", []))
+            if task.get("metrics") and not task.get("directory"):
+                raise ValueError(f"{prefix}.directory is required for metrics")
             directory = task.get("directory")
             if not isinstance(task.get("metadata", {}), Mapping):
                 raise ValueError(f"{prefix}.metadata must be an object")

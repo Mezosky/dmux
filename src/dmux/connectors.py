@@ -6,11 +6,23 @@ identity, completion, and integrity rules on top of these primitives.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import re
+import stat as stat_mode
 from typing import Callable, Mapping
+
+
+@contextmanager
+def open_regular(path, mode="rb", **kwargs):
+    """Never block on a producer-supplied pipe or deserialize a device."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
+    with os.fdopen(descriptor, mode, **kwargs) as handle:
+        if not stat_mode.S_ISREG(os.fstat(handle.fileno()).st_mode):
+            raise OSError(f"Not a regular file: {path}")
+        yield handle
 
 
 class JsonCache:
@@ -34,7 +46,7 @@ class JsonCache:
                 return self.cache[path][1]
             if stat.st_size > self.max_bytes:
                 raise ValueError(f"JSON document exceeds {self.max_bytes} bytes")
-            with path.open("r", encoding="utf-8") as handle:
+            with open_regular(path, "r", encoding="utf-8") as handle:
                 raw = handle.read(self.max_bytes + 1)
             if len(raw.encode("utf-8")) > self.max_bytes:
                 raise ValueError(f"JSON document exceeds {self.max_bytes} bytes")
@@ -80,7 +92,7 @@ class IncrementalJsonlReader:
         records: list[dict] = []
         reset = False
         try:
-            with self.path.open("rb") as handle:
+            with open_regular(self.path) as handle:
                 stat = os.fstat(handle.fileno())
                 identity = (stat.st_dev, stat.st_ino)
                 if self.identity != identity or stat.st_size < self.offset:
@@ -142,11 +154,11 @@ def tail_log(
     if path is None:
         return []
     try:
-        with Path(path).open("rb") as handle:
+        with open_regular(Path(path)) as handle:
             handle.seek(0, os.SEEK_END)
             size = handle.tell()
             handle.seek(max(0, size - max_bytes))
-            lines = handle.read().decode("utf-8", errors="replace").splitlines()
+            lines = handle.read(max_bytes).decode("utf-8", errors="replace").splitlines()
     except OSError:
         return []
 

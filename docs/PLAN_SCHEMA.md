@@ -3,6 +3,8 @@
 The `filesystem` adapter reads `PLAN_DIR/plan.json`. The plan describes existing
 outputs; dmux never writes any of the paths in it.
 Use `dmux init` to create a new plan and `dmux doctor` to check the connection.
+Use `dmux add /path/to/project` to register it for the global `dmux` home.
+`dmux watch` and explicit project flags open a scoped plan without registration.
 
 ## Minimal example
 
@@ -79,6 +81,9 @@ supplies display labels; `roster` is accepted for earlier plans. An experiment
 listed without any tasks is shown as blocked, with an optional `reason`.
 Task-local `label` values can differ even when tasks share a stage. Optional
 `stage_labels` supplies the shared headings used by the overview columns.
+Treat experiment tags as stable execution IDs; use display labels for renaming.
+For another execution, choose a distinct tag and output directory. Duplicate
+canonical experiment/stage identities are rejected instead of merged.
 
 ## Path rules
 
@@ -145,6 +150,21 @@ values override earlier ones. Task `outputs` lists optional paths or patterns
 relative to its result directory. The Enter detail view shows at most eight
 matched files, with bounded previews for JSON/JSONL/log/text/CSV files. Other
 artifacts are never deserialized.
+
+## Optional result metrics
+
+Each task can declare a `metrics` list for small numeric summaries and history
+plots. Sources are read **only when that experiment's detail view is open**.
+They never affect progress or completion. JSON objects/arrays, JSONL, and CSV
+are supported; fields, optimization direction, and units are user-selected.
+See the [result configuration guide](RESULTS.md) for the full contract.
+
+```json
+"metrics": [
+  {"label": "Loss", "type": "jsonl", "path": "history.jsonl",
+   "field": "loss", "x_field": "step", "goal": "min"}
+]
+```
 
 ## Session links
 

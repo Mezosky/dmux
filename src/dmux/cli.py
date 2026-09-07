@@ -27,7 +27,8 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
             "Closing the dashboard leaves jobs running."
         ),
         epilog=(
-            "commands: dmux init · dmux doctor · dmux demo --live · dmux watch · "
+            "bare dmux opens all registered experiments. Commands: dmux add PATH · dmux remove NAME · "
+            "dmux home · dmux projects list · dmux init · dmux doctor · dmux demo --live · dmux watch · "
             "dmux snapshot · dmux json · dmux sessions · dmux kill · dmux adapters"
         ),
     )
@@ -78,9 +79,19 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
     return result
 
 
-def main(argv=None, *, default_adapter: str = "filesystem") -> None:
+def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return_home=False) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv or argv[0] == "home":
+        from .home import main as home_main
+
+        home_main(argv[1:] if argv else [])
+        return
     command = argv[0] if argv and not argv[0].startswith("-") else "watch"
+    if command in {"add", "remove", "projects"}:
+        from .catalog import main as catalog_main
+
+        catalog_main(argv[1:] if command == "projects" else argv)
+        return
     if command == "init":
         from .onboarding import main as init_main
 
@@ -118,7 +129,7 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
             argv.append("--json")
     elif argv and not argv[0].startswith("-"):
         parser(default_adapter).error(
-            f"Unknown command {command!r}; use init, doctor, watch, snapshot, json, demo, sessions, kill, or adapters"
+            f"Unknown command {command!r}; use home, add, remove, projects, init, doctor, watch, snapshot, json, demo, sessions, kill, or adapters"
         )
     argument_parser = parser(default_adapter)
     args = argument_parser.parse_args(argv)
@@ -196,8 +207,12 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
 
     selected, stage = args.model, args.stage
     updated, running = time.monotonic(), True
-    picker, notice = None, None
-    detailed, pending_stop, stop_confirmation = False, None, ""
+    picker = SessionBrowser(navigator, snapshot["tasks"], preferred=args.model) if _entry == "tmux" else None
+    notice = None
+    detailed, pending_stop, stop_confirmation = _entry == "detail", None, ""
+    from .metrics import MetricReader
+
+    metric_reader, metric_offset = MetricReader(), 0
     hidden = set()
 
     def visible_snapshot():
@@ -245,13 +260,20 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
                                 if action[0] == "open":
                                     navigate = action[1]
                                     break
+                                if _entry == "tmux" and _return_home:
+                                    running = False
                         elif key in "qQ\x1b":
                             if detailed:
                                 detailed = False
+                                metric_reader.clear()
+                                if _return_home:
+                                    running = False
                             elif key in "qQ":
                                 running = False
                         elif key in "\r\n" and current_model():
                             selected, detailed = current_model(), True
+                        elif key == "m" and detailed:
+                            metric_offset += 1
                         elif key in "kK" and current_model():
                             task = selected_task(snapshot, current_model(), stage)
                             try:
@@ -263,6 +285,7 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
                         elif key in "xX" and current_model():
                             hidden.add(current_model())
                             selected, stage, detailed = None, None, False
+                            metric_reader.clear()
                             notice = "Tab hidden; its processes continue. Press u to restore hidden tabs."
                         elif key in "uU":
                             hidden.clear()
@@ -281,6 +304,8 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
                                 (tags_in_order.index(current) + direction) % len(tags_in_order)
                             ]
                             stage = None
+                            metric_offset = 0
+                            metric_reader.clear()
                         elif key in "[]":
                             stages = tuple(dict.fromkeys(t["name"] for t in snapshot["tasks"]
                                                          if t["model"] == current_model())) or adapter.presentation.stages
@@ -288,6 +313,7 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
                             current_stage = task["name"] if task else stages[0]
                             direction = 1 if key == "]" else -1
                             stage = stages[(stages.index(current_stage) + direction) % len(stages)]
+                            metric_offset = 0
                         elif key in "rR":
                             updated, notice = -math.inf, None
                     if time.monotonic() - updated >= args.interval:
@@ -302,7 +328,9 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
                             else picker.render(height=size.height)
                             if picker is not None
                             else render_detail(snapshot, current_model(), presentation=adapter.presentation,
-                                               stage=stage, height=size.height, notice=notice)
+                                               stage=stage, height=size.height, width=size.width, notice=notice,
+                                               metric_reader=metric_reader, metric_offset=metric_offset,
+                                               return_home=_return_home)
                             if detailed and current_model()
                             else render_dashboard(
                                 visible_snapshot(),
@@ -322,6 +350,8 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
                 # Live and keyboard contexts restored the screen and termios first.
                 notice = navigator.open(navigate)
                 updated = -math.inf
+                if _entry == "tmux" and _return_home:
+                    running = False
     except KeyboardInterrupt:
         pass
     console.print("Monitor closed.", style="grey70")

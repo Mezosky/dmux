@@ -3,14 +3,17 @@ from __future__ import annotations
 
 from pathlib import Path
 import subprocess
+import time
 
-def running_processes(adapter) -> list[dict]:
+def running_processes(adapter, *, table=None) -> list[dict]:
     """Find only processes explicitly named by an adapter."""
 
     import psutil
 
     processes: list[dict] = []
-    for process in psutil.process_iter(["pid", "cmdline", "create_time", "status"]):
+    if table is None:
+        table = list(psutil.process_iter(["pid", "cmdline", "create_time", "status"]))
+    for process in table:
         try:
             info = process.info
             command = info["cmdline"] or []
@@ -32,6 +35,31 @@ def running_processes(adapter) -> list[dict]:
         except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
             continue
     return processes
+
+
+class HostSampler:
+    """Share one process enumeration/GPU query across registered projects."""
+
+    def __init__(self):
+        self.table = None
+        self.process_time = self.gpu_time = -float("inf")
+        self.devices = {"devices": [], "error": None}
+
+    def processes(self, adapter):
+        import psutil
+
+        now = time.monotonic()
+        if self.table is None or now - self.process_time >= 2:
+            self.table = list(psutil.process_iter(["pid", "cmdline", "create_time", "status"]))
+            self.process_time = now
+        return running_processes(adapter, table=self.table)
+
+    def gpu(self):
+        now = time.monotonic()
+        if now - self.gpu_time >= 5:
+            self.devices = gpu_info()
+            self.gpu_time = now
+        return self.devices
 
 
 def gpu_info() -> dict:

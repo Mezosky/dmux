@@ -43,8 +43,7 @@ def test_init_dry_run_and_cancel_do_not_create_directories(tmp_path, capsys, mon
     assert plan["results_dir"] == str(tmp_path / "outputs")
     assert list(tmp_path.iterdir()) == []
     monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-    answers = iter([""] * 9 + ["no"])
-    monkeypatch.setattr("builtins.input", lambda _: next(answers))
+    monkeypatch.setattr("builtins.input", lambda prompt: "no" if "Create this plan?" in prompt else "")
     initialize(["--project-root", str(tmp_path)])
     assert "Cancelled" in capsys.readouterr().out
     assert list(tmp_path.iterdir()) == []
