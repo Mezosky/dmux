@@ -1,8 +1,49 @@
+# Local migration notes (keep the working copy, not the GitHub backup)
+/MIGRATION.md
+
+# Python bytecode and tool caches
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+.tox/
+.nox/
+
+# Local environments and secrets; retain shareable environment templates
 .venv/
+venv/
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Generated distributions and package metadata
 build/
 dist/
 *.egg-info/
 
+# Test and coverage reports
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local experiment outputs; do not blanket-ignore JSON, logs, or image fixtures
+/runs/
+/results/
+/outputs/
+/logs/
+/tmp/
+/*.sock
+/*.pid
+
+# Editor and operating-system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~

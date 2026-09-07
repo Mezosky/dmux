@@ -103,7 +103,7 @@ All relative task paths resolve against an explicit `--project-root` or the
 `project_root` declared by the plan—not dmux's installation directory.
 The generic `filesystem` adapter is the default for both the CLI and Python API.
 It is the only bundled adapter; optional external adapters can interpret custom
-formats. See [how to connect an existing project](MIGRATION.md).
+formats. See the [plan configuration guide](docs/PLAN_SCHEMA.md) to connect an existing project.
 
 ## Point a project at its outputs
 
