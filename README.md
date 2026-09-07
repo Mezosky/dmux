@@ -60,7 +60,7 @@ and Enter to open an experiment. Its details include optional small result plots
 Esc returns home; `t` opens that project's tmux browser. Tab selects a recently
 opened experiment; `x` closes its recent tab without stopping jobs.
 
-![dmux global home showing four experiments in one registered project, recent experiment tabs, three interrupted runs, and one completed audio run](screenshots/image.png)
+![dmux global home showing four experiments in one registered project, recent experiment tabs, three interrupted runs, and one completed audio run](screenshots/global-home.png)
 
 The `OPEN` strip contains recently opened experiments. This capture shows three
 interrupted runs and one completed audio run; PID dashes mean no matching live
