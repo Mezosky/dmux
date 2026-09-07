@@ -13,7 +13,7 @@ The interface combines visual experiment tabs, a pipeline overview, exact
 stage counters, responsive detail panels, resource telemetry, recent logs, and
 optional tmux workspaces for experiments and AI CLI chats.
 
-![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](screenshots/image2.png)
+![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](screenshots/experiment-overview.png)
 
 Compare vision/text, language, tabular, and audio experiments in one overview.
 Use `n` / `p` to select a tab, then Enter to inspect it. The audio example has
@@ -67,7 +67,7 @@ dmux json --adapter filesystem --project-root /tmp/dmux-demo --queue monitor
 
 ### Reading a live run
 
-![Live bigram language-model training at 193 of 1800 epochs, showing process PID, stage progress, resource telemetry, and a linked tmux session](screenshots/image1.png)
+![Live bigram language-model training at 193 of 1800 epochs, showing process PID, stage progress, resource telemetry, and a linked tmux session](screenshots/live-progress.png)
 
 - The top counter summarizes the whole plan. Here, `193 / 1,800` epochs are
   saved and `0/1` stages are complete.
@@ -113,15 +113,19 @@ directory. Absolute task paths remain absolute. A plan can also declare separate
 `root` and `results_dir` settings for each named project; see
 [the project configuration](docs/PLAN_SCHEMA.md#multiple-projects).
 
-![Experiment detail view showing the results directory, a completed evaluation stage, exact saved counts, and an unconfigured Outputs panel](screenshots/image3.png)
+![Live experiment details at 470 of 1800 epochs, with the worker PID, model and dataset metadata, and previews of progress.json and train.log](screenshots/experiment-details-live.png)
 
 Enter opens this detail view. Use `[` / `]` to choose a stage and Esc to return
-to the overview. A dash under PID means no matching live process was found.
+to the overview. The running stage shows its PID, elapsed runtime, and process
+command. Metadata comes from the plan; in this capture it identifies the model,
+dataset, CPU device, and epoch count. The Outputs panel previews the configured
+`progress.json` and `train.log` files, including perplexity and recent log lines.
+
 `k` / `K` request a confirmed stage / experiment stop; `x` only hides the tab
 and leaves jobs running.
 
-This capture has no output previews configured. Add `metadata` and `outputs`
-to a task to display experiment context and preview generated files:
+Add `metadata` and `outputs` to a task to display experiment context and preview
+generated files:
 
 ```json
 {
@@ -137,11 +141,32 @@ to a task to display experiment context and preview generated files:
 Previews read bounded text from configured files. Binary artifacts are listed
 by path and size.
 
+<details>
+<summary>What if output previews are not configured?</summary>
+
+![Completed experiment details showing the results directory, exact saved counts, and an unconfigured Outputs panel](screenshots/experiment-details-unconfigured.png)
+
+Monitoring progress does not require output previews. This completed experiment
+still shows its results directory and `8 / 8` saved records; the Outputs panel
+explains how to enable previews. A dash under PID means no matching live process
+was found. If outputs are configured but their files do not exist yet, dmux waits
+for them to appear without creating or modifying them.
+
+</details>
+
 ## tmux sessions and AI chats
 
 Press `t` from the dashboard or run `dmux sessions` directly. Use `/` to search,
 Tab to switch between sessions and windows, and Enter to open the selection.
 Project and result directories appear for workspaces created by dmux.
+
+![tmux session browser linking the dmux-live session and its chat and experiment windows to tiny_llm, with separate project and results paths](screenshots/tmux-session-browser.png)
+
+The selected `dmux-live` session contains independent `chat` and `experiment`
+windows and is linked to `tiny_llm`. Use the arrow keys or `j` / `k` to select a
+session; Tab lets you choose a specific window/pane before pressing Enter.
+The project and results paths show which workspace you are entering. Browsing
+does not create sessions or send commands into existing chats.
 
 Create a project chat workspace:
 
