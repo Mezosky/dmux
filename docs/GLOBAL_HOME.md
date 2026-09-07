@@ -4,6 +4,12 @@ Run `dmux` from any directory to see all explicitly registered projects and thei
 experiments. Registration is local to your user account and machine. dmux does
 not search your computer for results, run project code, or require a service.
 
+![Global dmux home with a searchable project-grouped experiment list, recent tabs, stage states, and PID columns](../screenshots/image.png)
+
+Here the tabular experiment is selected, three runs are marked interrupted, and
+the audio run is complete. The recent-tab strip provides quick access to opened
+experiments; it is separate from the project registration list.
+
 ## Register an existing plan
 
 ```bash
