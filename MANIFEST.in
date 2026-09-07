@@ -3,4 +3,4 @@ include AGENTS.md
 include MIGRATION.md
 recursive-include docs *.md
 recursive-include examples *.py
-
+recursive-include screenshots *.png

@@ -13,6 +13,13 @@ The interface combines visual experiment tabs, a pipeline overview, exact
 stage counters, responsive detail panels, resource telemetry, recent logs, and
 optional tmux workspaces for experiments and AI CLI chats.
 
+![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](screenshots/image2.png)
+
+Compare vision/text, language, tabular, and audio experiments in one overview.
+Use `n` / `p` to select a tab, then Enter to inspect it. The audio example has
+only completion artifacts, so it shows a completed stage without inventing a
+saved-count percentage.
+
 ## Install
 
 ```bash
@@ -58,6 +65,27 @@ dmux snapshot --adapter filesystem --project-root /tmp/dmux-demo --queue monitor
 dmux json --adapter filesystem --project-root /tmp/dmux-demo --queue monitor
 ```
 
+### Reading a live run
+
+![Live bigram language-model training at 193 of 1800 epochs, showing process PID, stage progress, resource telemetry, and a linked tmux session](screenshots/image1.png)
+
+- The top counter summarizes the whole plan. Here, `193 / 1,800` epochs are
+  saved and `0/1` stages are complete.
+- The selected experiment and its current stage have separate progress displays.
+  They match in this single-stage example; `10.7%` measures saved epochs, not
+  elapsed time or an ETA.
+- The active-process line shows the matched PID and its elapsed runtime. Press
+  `t` to browse the linked tmux workspace, or Enter to inspect the experiment.
+- GPU readings describe device-wide activity, not usage attributed to this
+  experiment. This tiny language model runs on CPU; the screenshot's busy GPU
+  can belong to other workloads.
+
+The yellow parent-queue warning in this capture comes from a standalone worker
+with no queue runner. It does not mean the displayed process has stopped.
+Closing dmux leaves that process running; explicit stops require confirmation.
+
+### Connect existing experiment files
+
 The declarative [`plan.json` schema](docs/PLAN_SCHEMA.md) supports:
 
 - append-only JSONL with configurable identity, semantic duplicate detection,
@@ -85,7 +113,15 @@ directory. Absolute task paths remain absolute. A plan can also declare separate
 `root` and `results_dir` settings for each named project; see
 [the project configuration](docs/PLAN_SCHEMA.md#multiple-projects).
 
-Add `metadata` and `outputs` to a task to show them when you press Enter:
+![Experiment detail view showing the results directory, a completed evaluation stage, exact saved counts, and an unconfigured Outputs panel](screenshots/image3.png)
+
+Enter opens this detail view. Use `[` / `]` to choose a stage and Esc to return
+to the overview. A dash under PID means no matching live process was found.
+`k` / `K` request a confirmed stage / experiment stop; `x` only hides the tab
+and leaves jobs running.
+
+This capture has no output previews configured. Add `metadata` and `outputs`
+to a task to display experiment context and preview generated files:
 
 ```json
 {
