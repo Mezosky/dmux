@@ -26,13 +26,25 @@ saved-count percentage.
 ## Install
 
 ```bash
-python -m pip install -e '.[dev]'
+python -m pip install .
 ```
 
 Runtime dependencies are `rich` and `psutil`. `tmux` and `nvidia-smi` are
 optional external tools; no model weights or inference frameworks are imported.
 
-## Try the heterogeneous model-zoo demo
+## Try it in one command
+
+```bash
+dmux demo --live
+```
+
+This creates a fresh temporary project, starts independent demo workers, and
+opens the dashboard in a terminal. The numeric workloads are paced over roughly
+five minutes so there is time to explore. They finish on their own; `q` closes
+the dashboard without stopping them. The command prints the project location
+and a command to reopen it. No model downloads or GPU are needed.
+
+### Heterogeneous demo outputs
 
 Run four real, tiny, dependency-free workloads: a CLIP-like vision-language
 matcher, a bigram language model, a tabular linear regressor, and an audio
@@ -40,15 +52,17 @@ frequency classifier. They emit JSONL metrics, rewritten JSON status,
 checkpoint files, logs, and completion artifacts:
 
 ```bash
-dmux demo --project-root /tmp/dmux-demo --tmux
-dmux watch --project-root /tmp/dmux-demo --plan-dir monitor
+dmux demo --live --tmux
+# Or generate a completed fixture immediately:
+dmux demo --quick --project-root /tmp/dmux-demo
 ```
 
 Each experiment gets its own tmux session, with `chat` and `experiment` windows.
 Start your preferred AI CLI in the chat window. The worker window keeps its
 output and opens a shell when the demo finishes. The dashboard reads the session
-links automatically. Omit `--tmux` to run the demo without tmux; use a fresh demo
-directory for each run. These are tiny deterministic fixtures; the vision/text
+links automatically. Omit `--tmux` to run without tmux. Without `--project-root`,
+each invocation chooses a fresh temporary directory; supplied demo directories
+must not already contain demo outputs. These are tiny deterministic fixtures; the vision/text
 matcher illustrates a dual-encoder workflow without loading pretrained CLIP.
 
 | Key | Action |
@@ -89,6 +103,26 @@ one is explicitly configured.
 Closing dmux leaves that process running; explicit stops require confirmation.
 
 ### Connect existing experiment files
+
+From your ML project directory:
+
+```bash
+dmux init --results-dir /path/to/your/results
+dmux doctor
+dmux
+```
+
+The setup wizard asks which file or pattern supplies progress, suggests fields
+from a bounded sample, and previews the plan before creating `monitor/plan.json`.
+It never overwrites an existing plan, edits results, or launches project code.
+`dmux` discovers that plan automatically; no training-code imports are required.
+For unattended setup use `--yes`, or `--dry-run` to preview JSON without writing.
+
+`dmux doctor` checks the resolved paths, counters, record integrity, configured
+logs, and process matching. Missing future outputs are warnings, not invented
+progress. Unknown totals show saved counts without percentages. See the
+[setup and troubleshooting guide](docs/ONBOARDING.md) and
+[small starter plan](examples/plan.json).
 
 The declarative [`plan.json` schema](docs/PLAN_SCHEMA.md) supports:
 
@@ -238,6 +272,7 @@ See [AGENTS.md](AGENTS.md) before changing integrity or navigation behavior.
 ## Development
 
 ```bash
+python -m pip install -e '.[dev]'
 pytest -q
 python -m dmux --help
 ```
@@ -245,3 +280,5 @@ python -m dmux --help
 The suite uses generic fixtures and tiny models to cover JSON, JSONL, logs,
 artifacts, explicit project-root resolution, responsive visuals, terminal
 restoration, and tmux integration on private temporary sockets.
+Compatibility validation uses these demos only; it does not claim certification
+against arbitrary ML frameworks or external research projects.

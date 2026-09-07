@@ -2,8 +2,31 @@
 
 The `filesystem` adapter reads `PLAN_DIR/plan.json`. The plan describes existing
 outputs; dmux never writes any of the paths in it.
+Use `dmux init` to create a new plan and `dmux doctor` to check the connection.
 
 ## Minimal example
+
+Save this as `monitor/plan.json`, changing the project root and results location:
+
+```json
+{
+  "project_root": "/work/my-project",
+  "results_dir": "outputs",
+  "tasks": [{
+    "experiment": "baseline",
+    "stage": "train",
+    "directory": ".",
+    "progress": {"type": "json", "path": "progress.json"}
+  }]
+}
+```
+
+With `outputs/progress.json` containing `{"current": 3, "total": 10}`, run
+`dmux --project-root /work/my-project`. This shows 3/10 saved; omitting `total`
+shows a count without a percentage. Nothing else is required. The same
+[starter file](../examples/plan.json) is included under `examples/`.
+
+## Advanced example
 
 ```json
 {
@@ -60,6 +83,8 @@ Task-local `label` values can differ even when tasks share a stage. Optional
 ## Path rules
 
 - `--plan-dir` locates the directory containing `plan.json`; `--queue` is an alias.
+  Without the flag, dmux checks the selected project root for `plan.json`, then
+  `monitor/plan.json`. A root-level plan takes precedence if both exist.
 - An explicit `--project-root` has highest precedence.
 - Otherwise, `project_root` in the plan is used. A relative declared root is
   resolved from the plan directory.
@@ -163,6 +188,11 @@ progress. Use JSONL for scientific evaluation counts where uniqueness matters.
 cache. `current_field` and `total_field` accept dotted paths such as
 `training.step`. This connector reports a producer-supplied counter; it does not
 claim row-level uniqueness. It is suitable for steps, epochs, or scheduler state.
+Both counters must be non-negative integers, not precomputed percentages.
+The defaults are `current` and `total`; an absent default total is allowed.
+If `total_field` is explicitly configured it must resolve to an integer, or the
+task must provide a fallback `expected` count. Unknown or malformed field names
+are reported by `dmux doctor` with the available integer fields.
 
 ### Files
 
@@ -170,6 +200,16 @@ claim row-level uniqueness. It is suitable for steps, epochs, or scheduler state
 It is useful for checkpoints, shards, or exported result partitions. Scans are
 bounded by `max_files` (default 100,000); exceeding the bound is flagged instead
 of reporting a silently incomplete count.
+
+### Unknown totals
+
+For JSONL and files, omit `expected` when no reliable total is available. For
+JSON, omit `total_field` and leave the default `total` absent. Such stages show
+saved counts, with `expected: null` in snapshots, and never a percentage or ETA.
+Completion cannot be inferred from the count alone. An explicit completion
+artifact may still establish completion. A counted stage with an unknown total
+also makes its experiment and whole-plan denominator unknown; known stages
+retain their own percentages. Artifact-only stages do not enter numeric totals.
 
 ## Completion artifacts
 
@@ -201,7 +241,9 @@ produce missing-scheduler warnings.
 `log` is tailed with bounded reads and ANSI/control sanitization. Process
 definitions may specify `script`, `output_flag`, and `default_output`. Only an
 exact configured script basename is considered, and destination paths must match
-the resolved task or plan-directory path. Logs are read only when a task declares
+the resolved task or plan-directory path. Both `--out PATH` and `--out=PATH`
+forms are supported. PID discovery cannot see inaccessible processes or remote
+hosts and does not infer liveness from counters alone. Logs are read only when a task declares
 `log`; dmux does not guess filenames.
 
 `pause_file` is optional and relative to the plan directory. dmux never creates or removes

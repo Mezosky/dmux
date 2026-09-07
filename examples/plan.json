@@ -1,0 +1,10 @@
+{
+  "project_root": "/work/my-project",
+  "results_dir": "outputs",
+  "tasks": [{
+    "experiment": "baseline",
+    "stage": "train",
+    "directory": ".",
+    "progress": {"type": "json", "path": "progress.json"}
+  }]
+}

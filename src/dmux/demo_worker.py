@@ -1,4 +1,4 @@
-"""One demonstration workload, launched as an independent tmux process."""
+"""One demonstration workload, launched independently or in tmux."""
 from pathlib import Path
 import os
 import sys

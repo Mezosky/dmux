@@ -76,6 +76,8 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, notic
         text = Text(f'Stage progress: {progress["saved"]:,} / {task["expected"]:,} saved  ')
         text.append_text(progress_text(progress["saved"], task["expected"]))
         parts.append(text)
+    elif progress is not None:
+        parts.append(Text(f'Stage progress: {(progress or {}).get("saved", 0):,} saved · total unknown'))
     if task.get("process_command"):
         parts.append(Text("Process: " + " ".join(task["process_command"]), style="grey62",
                           no_wrap=True, overflow="ellipsis"))

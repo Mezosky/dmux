@@ -27,8 +27,8 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
             "Closing the dashboard leaves jobs running."
         ),
         epilog=(
-            "commands: dmux watch [options] · dmux snapshot [options] · "
-            "dmux json [options] · dmux demo --project-root PATH · dmux sessions · dmux kill · dmux adapters"
+            "commands: dmux init · dmux doctor · dmux demo --live · dmux watch · "
+            "dmux snapshot · dmux json · dmux sessions · dmux kill · dmux adapters"
         ),
     )
     result.add_argument(
@@ -47,11 +47,11 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
     )
     result.add_argument(
         "--plan-dir", "--queue", dest="queue",
-        type=Path,
-        help="Directory containing plan.json (default: project root); --queue is an alias",
+        type=Path, metavar="PLAN_DIR",
+        help="Directory containing plan.json (default: project root, then monitor/); --queue is an alias",
     )
     result.add_argument("--interval", type=float, default=2.0, help="Refresh seconds (default: 2)")
-    result.add_argument("--experiment", "--model", dest="model", help="Initially focus an experiment tag")
+    result.add_argument("--experiment", "--model", dest="model", metavar="TAG", help="Initially focus an experiment tag")
     result.add_argument("--stage", help="Initially inspect a stage instead of following the active one")
     modes = result.add_mutually_exclusive_group()
     modes.add_argument("--once", action="store_true", help="Print one expanded dashboard and exit")
@@ -81,6 +81,16 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
 def main(argv=None, *, default_adapter: str = "filesystem") -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     command = argv[0] if argv and not argv[0].startswith("-") else "watch"
+    if command == "init":
+        from .onboarding import main as init_main
+
+        init_main(argv[1:])
+        return
+    if command == "doctor":
+        from .diagnostics import main as doctor_main
+
+        doctor_main(argv[1:])
+        return
     if command == "demo":
         from .demo import main as demo_main
 
@@ -108,7 +118,7 @@ def main(argv=None, *, default_adapter: str = "filesystem") -> None:
             argv.append("--json")
     elif argv and not argv[0].startswith("-"):
         parser(default_adapter).error(
-            f"Unknown command {command!r}; use watch, snapshot, json, demo, sessions, kill, or adapters"
+            f"Unknown command {command!r}; use init, doctor, watch, snapshot, json, demo, sessions, kill, or adapters"
         )
     argument_parser = parser(default_adapter)
     args = argument_parser.parse_args(argv)

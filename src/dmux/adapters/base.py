@@ -60,6 +60,9 @@ def resolve_path(value: str | Path, base: str | Path) -> Path:
 
 
 def command_option(command: Sequence[str], flag: str) -> str | None:
+    for argument in command:
+        if argument.startswith(flag + "="):
+            return argument[len(flag) + 1:] or None
     try:
         return command[command.index(flag) + 1]
     except (ValueError, IndexError):

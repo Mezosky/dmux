@@ -110,7 +110,7 @@ class RecordTracker:
             {
                 "label": str(group),
                 "saved": saved,
-                "expected": int(expected_groups.get(str(group), 0)),
+                "expected": expected_groups.get(str(group)),
                 "excluded": sum(self.group_statuses[group, status] for status in excluded_statuses),
                 "rate_per_second": None,
                 "eta_seconds": None,
@@ -202,6 +202,22 @@ class FilesystemAdapter:
 
     @staticmethod
     def _validate(plan: Mapping) -> None:
+        def text_field(obj, key, prefix):
+            if key in obj and (not isinstance(obj[key], str) or not obj[key]):
+                raise ValueError(f"{prefix}.{key} must be a non-empty string")
+
+        def process_fields(value, prefix):
+            if not isinstance(value, Mapping):
+                raise ValueError(f"{prefix} must be an object")
+            for key in ("script", "output_flag", "default_output"):
+                text_field(value, key, prefix)
+
+        for key in ("project_root", "name", "unit", "entity_heading", "pause_file"):
+            text_field(plan, key, "plan")
+        process_fields(plan.get("queue_process", {}), "plan.queue_process")
+        labels = plan.get("stage_labels", {})
+        if not isinstance(labels, Mapping) or any(not isinstance(v, str) for v in labels.values()):
+            raise ValueError("plan.stage_labels must map stages to strings")
         if not isinstance(plan.get("metadata", {}), Mapping):
             raise ValueError("plan.metadata must be an object")
         tmux = plan.get("tmux", {})
@@ -219,6 +235,10 @@ class FilesystemAdapter:
             prefix = f"plan.tasks[{index}]"
             if not isinstance(task, Mapping):
                 raise ValueError(f"{prefix} must be an object")
+            for key in ("label", "log", "detail"):
+                if key in task and not isinstance(task[key], str):
+                    raise ValueError(f"{prefix}.{key} must be a string")
+            process_fields(task.get("process", {}), f"{prefix}.process")
             run = task.get("experiment", task.get("run", task.get("model", task.get("group", "default"))))
             stage = task.get("name", task.get("stage", "run"))
             if not isinstance(run, str) or not run or not isinstance(stage, str) or not stage:
@@ -251,6 +271,8 @@ class FilesystemAdapter:
                     progress.get("path"), str
                 ):
                     raise ValueError(f"{prefix}.progress.path is required")
+                for key in ("path", "current_field", "total_field", "group_field", "status_field", "group_label", "glob"):
+                    text_field(progress, key, f"{prefix}.progress")
                 identity = progress.get("identity", ["id"])
                 if progress["type"] == "jsonl" and (
                     not isinstance(identity, list)
@@ -258,6 +280,21 @@ class FilesystemAdapter:
                     or not all(isinstance(field, str) and field for field in identity)
                 ):
                     raise ValueError(f"{prefix}.progress.identity must contain field names")
+                for key in ("semantic_identity", "valid_statuses", "excluded_statuses"):
+                    if key in progress and (not isinstance(progress[key], list) or
+                            not all(isinstance(v, str) and v for v in progress[key])):
+                        raise ValueError(f"{prefix}.progress.{key} must be a list of strings")
+                allowed = progress.get("allowed_values", {})
+                if not isinstance(allowed, Mapping) or any(
+                    not isinstance(k, str) or not k or not isinstance(v, list) for k, v in allowed.items()
+                ):
+                    raise ValueError(f"{prefix}.progress.allowed_values must map fields to lists")
+                groups = progress.get("expected_by_group", {})
+                if not isinstance(groups, Mapping) or any(type(v) is not int or v < 0 for v in groups.values()):
+                    raise ValueError(f"{prefix}.progress.expected_by_group must map groups to non-negative integers")
+                pattern = progress.get("glob", "*")
+                if progress["type"] == "files" and Path(pattern).is_absolute():
+                    raise ValueError(f"{prefix}.progress.glob must be relative to the task directory")
                 max_files = progress.get("max_files", 100_000)
                 if progress["type"] == "files" and (
                     type(max_files) is not int or max_files < 1
@@ -269,6 +306,12 @@ class FilesystemAdapter:
                 or not isinstance(completion.get("path"), str)
             ):
                 raise ValueError(f"{prefix}.completion requires a file/json type and path")
+            if completion is not None:
+                for key in ("path", "field"):
+                    text_field(completion, key, f"{prefix}.completion")
+                required = completion.get("required", [])
+                if not isinstance(required, list) or not all(isinstance(p, str) and p for p in required):
+                    raise ValueError(f"{prefix}.completion.required must be a list of paths")
         short_labels = plan.get("short_labels")
         stages = tuple(
             dict.fromkeys(task.get("name", task.get("stage", "run")) for task in tasks)
@@ -284,6 +327,8 @@ class FilesystemAdapter:
             raise ValueError("plan.disk_warning_gib must be a finite non-negative number")
 
     def default_queue(self, project_root: Path) -> Path:
+        if not (project_root / "plan.json").exists() and (project_root / "monitor" / "plan.json").exists():
+            return project_root / "monitor"
         return project_root
 
     def default_process_output(self, script: str) -> str | None:
@@ -337,18 +382,21 @@ class FilesystemAdapter:
                 value = cache.read(source)
                 current = _field(value, progress_config.get("current_field", "current"))
                 total = _field(value, progress_config.get("total_field", "total"), expected)
-                if type(current) is int and current >= 0 and type(total) is int and total >= 0:
+                valid_total = (type(total) is int and total >= 0) or (
+                    total is None and "total_field" not in progress_config
+                )
+                if type(current) is int and current >= 0 and valid_total:
                     progress = self._simple_progress(current, total)
                     if expected is not None and total != expected:
                         progress["unexpected"] += 1
                 elif value is not None:
-                    progress = self._simple_progress(0, int(expected or 0), malformed=1)
+                    progress = self._simple_progress(0, expected, malformed=1)
             elif kind == "files":
                 limit = int(progress_config.get("max_files", 100_000))
                 candidates = list(islice(path.glob(progress_config.get("glob", "*")), limit + 1))
                 overflow = len(candidates) > limit
                 matches = {item.resolve() for item in candidates[:limit] if item.is_file()}
-                progress = self._simple_progress(len(matches), int(expected or 0))
+                progress = self._simple_progress(len(matches), expected)
                 if overflow:
                     progress["unexpected"] += 1
                     warnings.append(f"file glob exceeded its {limit:,}-entry scan limit")
@@ -372,7 +420,7 @@ class FilesystemAdapter:
         return progress, marker, detail, warnings
 
     @staticmethod
-    def _simple_progress(saved: int, expected: int, malformed: int = 0) -> dict:
+    def _simple_progress(saved: int, expected: int | None, malformed: int = 0) -> dict:
         return {
             "saved": saved,
             "expected": expected,
@@ -381,7 +429,7 @@ class FilesystemAdapter:
             "statuses": {"ok": saved},
             "duplicates": 0,
             "malformed": malformed,
-            "unexpected": max(0, saved - expected),
+            "unexpected": max(0, saved - expected) if expected is not None else 0,
             "partial_write": False,
             "last_save_age_seconds": None,
             "last": None,

@@ -13,7 +13,9 @@ import json
 import math
 from pathlib import Path
 import shlex
+import subprocess
 import sys
+import tempfile
 import time
 
 
@@ -223,25 +225,55 @@ def run_experiment(name: str, results: Path, steps: int, delay: float) -> None:
     print(f"Completed {name}; results: {results / name}", flush=True)
 
 
+def worker_command(name: str, results: Path, steps: int, delay: float) -> list[str]:
+    return [sys.executable, str(Path(__file__).with_name("demo_worker.py")),
+            "--experiment", name, "--out", str(results / name),
+            "--steps", str(steps), "--delay", str(delay)]
+
+
+def launch_workers(root: Path, results: Path, steps: int, delay: float) -> list[subprocess.Popen]:
+    """Launch only explicitly requested demo jobs; dashboard exit never stops them."""
+    workers = []
+    for name in EXPERIMENTS:
+        output = results / name
+        output.mkdir(parents=True, exist_ok=True)
+        try:
+            with (output / "worker.log").open("x", encoding="utf-8") as log:
+                worker = subprocess.Popen(worker_command(name, results, steps, delay), cwd=root,
+                    stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                    start_new_session=True)
+        except OSError as exc:
+            raise OSError(f"Could not launch {name}: {exc}. Already started demo PIDs: "
+                          + (", ".join(str(p.pid) for p in workers) or "none")) from exc
+        workers.append(worker)
+    return workers
+
+
 def main(argv=None) -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--project-root", type=Path, required=True)
-    parser.add_argument("--steps", type=int, default=8)
-    parser.add_argument("--delay", type=float, default=0.15)
+    parser = argparse.ArgumentParser(prog="dmux demo", description=__doc__)
+    parser.add_argument("--project-root", type=Path, help="Fresh demo directory (default: temporary directory)")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--live", action="store_true", help="Start independent workers and open the dashboard in a terminal")
+    modes.add_argument("--quick", action="store_true", help="Generate completed demo outputs without pacing delays")
+    parser.add_argument("--steps", type=int, help="Steps per numeric workload (default: 300 live; 8 otherwise)")
+    parser.add_argument("--delay", type=float, help="Pacing seconds per step (default: 1 live; 0 quick; 0.15 otherwise)")
     parser.add_argument("--results-dir", type=Path, help="Output location; default PROJECT/runs")
     parser.add_argument("--tmux", action="store_true", help="Create a session per experiment with chat and worker windows")
     parser.add_argument("--tmux-socket", type=Path, help="Server to create demo sessions on")
     parser.add_argument("--session-prefix", default="dmux", help="Prefix for the four session names")
     args = parser.parse_args(argv)
+    args.steps = args.steps if args.steps is not None else 300 if args.live else 8
+    args.delay = args.delay if args.delay is not None else 1.0 if args.live else 0.0 if args.quick else 0.15
     if args.steps < 1 or not math.isfinite(args.delay) or args.delay < 0:
         parser.error("--steps must be positive and --delay must be finite and non-negative")
-    root = args.project_root.expanduser().resolve()
+    root = args.project_root.expanduser().resolve() if args.project_root else Path(tempfile.mkdtemp(prefix="dmux-demo-"))
     queue = root / "monitor"
     results = args.results_dir.expanduser() if args.results_dir else root / "runs"
     if not results.is_absolute():
         results = root / results
     results = results.resolve()
-    if (queue / "plan.json").exists() or any((results / name).exists() for name in EXPERIMENTS):
+    if ((queue / "plan.json").exists() or (queue / "plan.json").is_symlink()
+            or any((results / name).exists() or (results / name).is_symlink() for name in EXPERIMENTS)):
         parser.error("Demo outputs already exist; choose a fresh --project-root and --results-dir")
     definition = plan(args.steps, queue, results)
     for task in definition["tasks"]:
@@ -253,6 +285,10 @@ def main(argv=None) -> None:
             "tabular": ["checkpoint-*.json"],
             "audio": ["metrics.json"],
         }[task["experiment"]]
+        if args.live or args.tmux:
+            task["process"] = {"script": "demo_worker.py", "output_flag": "--out"}
+        if args.live and not args.tmux:
+            task["outputs"].append("worker.log")
     if args.tmux:
         from .sessions import SessionError, SessionManager
         from .tmux import TmuxNavigator
@@ -267,8 +303,6 @@ def main(argv=None) -> None:
         definition["tmux"] = {"links": links}
         if args.tmux_socket:
             definition["tmux"]["socket"] = str(args.tmux_socket.expanduser().resolve())
-        for task in definition["tasks"]:
-            task["process"] = {"script": "demo_worker.py", "output_flag": "--out"}
         root.mkdir(parents=True, exist_ok=True)
         created = []
         try:
@@ -279,13 +313,18 @@ def main(argv=None) -> None:
             write_json(queue / "plan.json", definition)
             for name, sid in created:
                 manager.add_window(sid, name="experiment", project_root=root,
-                    results_dir=results / name, command=[sys.executable,
-                        str(Path(__file__).with_name("demo_worker.py")), "--experiment", name,
-                        "--out", str(results / name), "--steps", str(args.steps),
-                        "--delay", str(args.delay), "--keep-window"])
+                    results_dir=results / name,
+                    command=[*worker_command(name, results, args.steps, args.delay), "--keep-window"])
         except SessionError as exc:
             # Do not kill partially created workspaces; report their exact IDs.
             parser.exit(2, f"{exc}\nCreated sessions: {', '.join(sid for _, sid in created) or 'none'}\n")
+    elif args.live:
+        write_json(queue / "plan.json", definition)
+        try:
+            workers = launch_workers(root, results, args.steps, args.delay)
+        except OSError as exc:
+            parser.exit(2, f"{exc}\nPlan retained at {queue / 'plan.json'}.\n")
+        print("Demo worker PIDs: " + ", ".join(str(worker.pid) for worker in workers))
     else:
         write_json(queue / "plan.json", definition)
         for task in definition["tasks"]:
@@ -296,6 +335,13 @@ def main(argv=None) -> None:
     print(f"dmux watch --project-root {shlex.quote(str(root))} --plan-dir monitor")
     if args.tmux:
         print("Press t to browse the linked sessions; chat windows are ready for your AI CLI.")
+    if args.live:
+        print("n/p browse experiments · Enter details · q closes dmux, leaving workers running.")
+        print("The paced numeric demos finish on their own; audio may finish immediately.")
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            from .cli import main as watch
+
+            watch(["watch", "--project-root", str(root), "--plan-dir", "monitor", "--interval", "0.5", "--no-gpu"])
 
 
 if __name__ == "__main__":

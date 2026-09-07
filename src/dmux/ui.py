@@ -143,13 +143,13 @@ def render_dashboard(
         parts += [Text(snapshot["message"], style="yellow"), Text(snapshot["queue"], style="grey62")]
         return Group(*parts)
 
-    summary = Text(
-        f'{snapshot["saved"]:,} / {snapshot["expected"]:,} {presentation.unit} saved   ',
-        style="bold",
-    )
-    summary.append_text(
-        progress_text(snapshot["saved"], snapshot["expected"], width=16 if width >= 100 else 8)
-    )
+    if snapshot["expected"] is None:
+        summary = Text(f'{snapshot["saved"]:,} {presentation.unit} saved · total unknown', style="bold")
+    else:
+        summary = Text(
+            f'{snapshot["saved"]:,} / {snapshot["expected"]:,} {presentation.unit} saved   ', style="bold")
+        summary.append_text(
+            progress_text(snapshot["saved"], snapshot["expected"], width=16 if width >= 100 else 8))
     summary.append(
         f'   {snapshot["completed_stages"]}/{snapshot["total_stages"]} stages complete',
         style="grey74",
@@ -207,7 +207,7 @@ def render_dashboard(
                 style="bright_cyan" if model["saved"] else "grey50",
             )
         else:
-            saved = Text("—", style="grey50")
+            saved = Text(f'{model["saved"]:,} saved' if model.get("counted") else "—", style="grey70")
         if narrow:
             current = next(
                 (
@@ -269,6 +269,8 @@ def render_dashboard(
             )
             if width >= 100:
                 stage_progress.append(f"   {max(0, expected - saved_count):,} remaining", style="grey70")
+        elif current["progress"] is not None:
+            stage_progress.append(f'{(current["progress"] or {}).get("saved", 0):,} saved · total unknown')
         else:
             stage_progress.append(current["state"], style=COLORS.get(current["state"], "white"))
             stage_progress.append(
@@ -306,6 +308,8 @@ def render_dashboard(
             number = (
                 f'{count:,} / {task["expected"]:,}'
                 if task["expected"] is not None
+                else f"{count:,} / —"
+                if task.get("counted")
                 else "artifact"
                 if task["state"] == "complete"
                 else "—"
@@ -330,8 +334,10 @@ def render_dashboard(
             for group in breakdown:
                 details.add_row(
                     str(group.get("label", "—")),
-                    f'{group["saved"]:,} / {group["expected"]:,}',
-                    progress_text(group["saved"], group["expected"], width=8),
+                    (f'{group["saved"]:,} / {group["expected"]:,}' if group["expected"] is not None
+                     else f'{group["saved"]:,} / —'),
+                    (progress_text(group["saved"], group["expected"], width=8)
+                     if group["expected"] is not None else Text("total unknown", style="grey62")),
                 )
             notes = Text(
                 f'last save {duration(progress.get("last_save_age_seconds"))} ago', style="grey62"

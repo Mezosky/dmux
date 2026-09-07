@@ -27,6 +27,10 @@ sequence, or results layout.
 - `src/dmux/process_actions.py`: identity-checked, confirmed SIGTERM actions.
 - `src/dmux/terminal.py`: keyboard decoding and guaranteed termios restoration.
 - `src/dmux/cli.py`: dependency checks and interactive/non-interactive modes.
+- `src/dmux/discovery.py`: bounded read-only file/field suggestions, not framework detection.
+- `src/dmux/onboarding.py`: explicit setup wizard and exclusive new-plan creation.
+- `src/dmux/diagnostics.py`: read-only connection checks and stable diagnostic JSON.
+- `src/dmux/demo.py`: explicitly launched tiny demos; independent live workers.
 - `examples/`: tiny heterogeneous workloads; examples never supply core defaults.
 
 ## Non-negotiable invariants
@@ -70,6 +74,16 @@ sequence, or results layout.
 13. Standalone experiments are first-class. A scheduler is optional; only warn
     about a missing scheduler when the plan explicitly declares one. Read logs
     only from configured paths rather than guessing a project-specific filename.
+14. Unknown numeric totals remain `None`/JSON `null`, including aggregate totals
+    when any counted stage lacks a denominator. Show saved counts without
+    percentages. Artifact-only stages do not enter numeric denominators.
+15. `init` may create only a new plan and its parent directory after explicit
+    confirmation or `--yes`. Never overwrite/merge existing plans or write to
+    experiment outputs. Dry-run and cancellation write nothing. `doctor` is
+    strictly read-only and must never launch project code or external tools.
+16. Live demo workers run independently of the dashboard, only in fresh demo
+    output locations. Quitting never signals them or removes their files. Tests
+    clean up only their own exact worker identities/private tmux server.
 
 ## Visual contract
 

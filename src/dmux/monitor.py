@@ -87,9 +87,9 @@ class Monitor:
             }
 
         try:
+            self.adapter.configure(plan)
             project_root = self._plan_root(plan)
             locations = project_paths(plan, project_root, self.results_dir)
-            self.adapter.configure(plan)
         except ValueError as exc:
             return {
                 "state": "invalid",
@@ -149,6 +149,8 @@ class Monitor:
             location = locations[raw_task.get("project")]
             path = self.adapter.task_directory(task, location.results)
             jobs = sorted(by_destination.get(str(path), []), key=lambda p: (p["started"], p["pid"]))
+            if task.get("process", {}).get("script"):
+                jobs = [p for p in jobs if p["script"] == task["process"]["script"]]
             job = next(iter(jobs), None)
             key = (task["model"], task["name"])
             is_advisory = key == advisory_key
@@ -184,6 +186,7 @@ class Monitor:
                     "label": task.get("label", self.adapter.presentation.stage_label(task["name"])),
                     "state": state,
                     "expected": expected,
+                    "counted": bool(raw_task.get("progress")) or progress is not None or expected is not None,
                     "progress": progress,
                     "detail": detail,
                     "pid": job["pid"] if job else None,
@@ -232,7 +235,9 @@ class Monitor:
         models = []
         for tag in order:
             model_tasks = [task for task in tasks if task["model"] == tag]
-            expected = sum(task["expected"] or 0 for task in model_tasks)
+            counted = [task for task in model_tasks if task["counted"]]
+            expected = (sum(task["expected"] for task in counted)
+                        if counted and all(task["expected"] is not None for task in counted) else None)
             saved = sum((task["progress"] or {}).get("saved", 0) for task in model_tasks)
             models.append(
                 {
@@ -242,6 +247,7 @@ class Monitor:
                     "blocked": not bool(model_tasks),
                     "reason": roster.get(tag, {}).get("reason") or ("No stages declared" if not model_tasks else None),
                     "expected": expected,
+                    "counted": bool(counted),
                     "saved": saved,
                     "completed_stages": sum(
                         task["state"] == "complete" for task in model_tasks
@@ -281,7 +287,10 @@ class Monitor:
             "experiments": models,
             "active": active,
             "queue_pid": queue_jobs[0]["pid"] if queue_jobs else None,
-            "expected": sum(model["expected"] for model in models),
+            "expected": (sum(model["expected"] for model in models if model["counted"])
+                         if any(model["counted"] for model in models)
+                         and all(model["expected"] is not None for model in models if model["counted"])
+                         else None),
             "saved": sum(model["saved"] for model in models),
             "completed_stages": sum(task["state"] == "complete" for task in tasks),
             "total_stages": len(tasks),
