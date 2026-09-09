@@ -234,6 +234,7 @@ def test_global_detail_roundtrip_and_recent_tab_keep_workers_running(tmp_path):
     import termios
     import time
     from dmux.demo import launch_workers, plan
+    from terminal_helpers import terminal_settings
 
     root = tmp_path / "live-project"
     directory = root / "monitor"
@@ -277,7 +278,7 @@ def test_global_detail_roundtrip_and_recent_tab_keep_workers_running(tmp_path):
             if select.select([master], [], [], .1)[0]:
                 os.read(master, 65536)
         assert cli.wait(timeout=2) == 0
-        assert termios.tcgetattr(slave) == previous
+        assert terminal_settings(termios.tcgetattr(slave)) == terminal_settings(previous)
         assert sum(worker.poll() is None for worker in workers) == 3
         assert len(ProjectCatalog().read()) == 1
     finally:

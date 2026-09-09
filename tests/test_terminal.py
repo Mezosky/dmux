@@ -114,3 +114,23 @@ def test_resume_emits_redraw_without_a_navigation_key(monkeypatch):
     finally:
         os.close(master)
         os.close(slave)
+
+
+def test_terminal_settings_ignores_only_darwin_pending_input():
+    from terminal_helpers import terminal_settings
+
+    # Actual local flags observed on the macOS CI runner.
+    previous = [11010, 3, 19200, 1483, 9600, 9600, [b"\x03", b"\x04"]]
+    pending = [*previous[:3], 536872395, *previous[4:]]
+    options = {"platform": "darwin", "pendin": 0x20000000}
+    assert terminal_settings(pending, **options) == previous
+    assert pending[3] == 536872395  # Comparing does not mutate either snapshot.
+    assert terminal_settings(pending, platform="linux", pendin=0x20000000) != previous
+
+    # Every other setting still matters, including canonical mode and echo.
+    for index, mask in ((0, 1), (1, 1), (2, 1), (3, 0x100), (3, 0x8), (4, 1), (5, 1)):
+        changed = list(pending)
+        changed[index] ^= mask
+        assert terminal_settings(changed, **options) != previous
+    changed = [*pending[:6], [b"\x05", b"\x04"]]
+    assert terminal_settings(changed, **options) != previous
