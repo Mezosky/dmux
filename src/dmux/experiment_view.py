@@ -3,13 +3,13 @@ from __future__ import annotations
 
 from collections import OrderedDict
 import json
+import os
 import time
 from itertools import islice
 from pathlib import Path
 
 from .connectors import tail_log
-from .bindings import legend
-from .ui import COLORS, duration, progress_text, selected_task, task_label
+from .ui import COLORS, content_height, duration, progress_text, selected_task, task_label
 
 
 class PreviewReader:
@@ -100,20 +100,37 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         return Panel(Group(title, Text("No stages available. Esc returns to experiments.")))
     parts = [title, Text("Results: " + str(task.get("directory") or "not configured"), style="grey74",
                         overflow="ellipsis", no_wrap=True)]
-    table = Table(expand=True, box=None)
-    for heading in ("STAGE", "STATE", "PID", "ELAPSED"):
-        table.add_column(heading)
+    footer = []
+    for warning in snapshot.get("warnings", [])[:2]:
+        footer.append(Text("! " + warning, style="yellow"))
+    if notice:
+        footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
+    footer.append(Text("[ ] stage · t tmux · k/K stop · ? help", style="grey70", no_wrap=True))
+    footer.append(Text(("Esc/q home" if return_home else "Esc/q back") +
+                       " · m results · x hide · u restore", style="grey70", no_wrap=True))
+
+    def remaining(extra=()):
+        return height - content_height(Panel(Group(*parts, *extra, *footer)), width)
+
     tasks = [item for item in snapshot["tasks"] if item["model"] == model]
     has_metrics = bool(task.get("metrics"))
-    # Keep the selected stage in view even for a large pipeline.
     index = tasks.index(task)
-    count = max(1, min(2 if has_metrics and height < 40 else 4 if has_metrics else 8, height // 5))
-    start = max(0, index - count // 2)
-    for item in tasks[start:start + count]:
-        table.add_row(Text(("› " if item is task else "  ") + task_label(item, presentation)),
-                      Text(item["state"], style=COLORS.get(item["state"], "white")),
-                      ", ".join(str(p["pid"]) for p in item.get("processes", [])) or str(item["pid"] or "—"),
-                      duration(item["elapsed_seconds"]))
+
+    def stage_table(count):
+        table = Table(expand=True, box=None)
+        for heading in ("STAGE", "STATE", "PID", "ELAPSED"):
+            table.add_column(heading)
+        start = min(max(0, index - count // 2), len(tasks) - count)
+        for item in tasks[start:start + count]:
+            table.add_row(Text(("› " if item is task else "  ") + task_label(item, presentation)),
+                          Text(item["state"], style=COLORS.get(item["state"], "white")),
+                          ", ".join(str(p["pid"]) for p in item.get("processes", [])) or str(item["pid"] or "—"),
+                          duration(item["elapsed_seconds"]))
+        return table
+
+    # Reserve the selected stage and results before expanding its neighbors.
+    table = stage_table(1)
+    stage_position = len(parts)
     parts.append(table)
     progress = task.get("progress")
     if progress is not None and task["expected"] is not None:
@@ -125,38 +142,68 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
     if has_metrics:
         from .metrics import MetricReader, render_metrics
 
-        parts.append(render_metrics(task, metric_reader or MetricReader(), width=width,
-                                    limit=1 if height < 24 else 2 if height < 40 else 3,
-                                    offset=metric_offset))
-    if task.get("process_command"):
+        metric_reader = metric_reader or MetricReader()
+        # A metric has a value, a plot/status line, and at most one warning
+        # line. Reserve that shape so page size cannot change with page contents.
+        status_rows = content_height(Text("No valid points yet; check the configured field"), max(1, width - 8))
+        limit = max(1, min(3, (remaining() - 2) // (2 + status_rows)))
+        parts.append(render_metrics(task, metric_reader, width=max(1, width - 4),
+                                    limit=limit, offset=metric_offset))
+    for count in range(min(len(tasks), 4 if has_metrics else 8), 1, -1):
+        parts[stage_position] = stage_table(count)
+        if remaining() >= 0:
+            break
+        parts[stage_position] = table
+    if task.get("process_command") and remaining() >= 1:
         parts.append(Text("Process: " + " ".join(task["process_command"]), style="grey62",
                           no_wrap=True, overflow="ellipsis"))
     metadata = task.get("metadata") or {}
-    if metadata and (not has_metrics or height >= 32):
-        # Per-field lines preserve the values on compact terminals.
-        lines = [f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in list(metadata.items())[:2 if has_metrics else 5]]
-        parts.append(Panel(Text("\n".join(lines), overflow="ellipsis"), title="Metadata", border_style="grey35"))
-    if height >= (45 if has_metrics else 28):
-        previews = output_previews(task, preview_reader)
-        lines = []
-        for name, size, preview in previews[:2 if height < 45 else 4]:
-            lines.append(f"{name} ({size:,} bytes)")
-            lines.extend(preview[:2])
-        if not lines:
-            lines = ["No configured outputs are present yet." if task.get("outputs")
-                     else "No output previews configured; add outputs to this task in plan.json."]
-        parts.append(Panel(Text("\n".join(lines), overflow="ellipsis"), title="Outputs", border_style="grey35"))
-    if height >= (55 if has_metrics else 40):
+    if metadata:
+        entries = list(metadata.items())[:5]
+        for count in range(len(entries), 0, -1):
+            lines = [f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in entries[:count]]
+            panel = Panel(Text("\n".join(lines), overflow="ellipsis", no_wrap=True),
+                          title="Metadata", border_style="grey35")
+            if remaining([panel]) >= 0:
+                parts.append(panel)
+                break
+    # Read optional sources only when a panel can fit. Reserve room for both
+    # outputs and the configured log instead of consuming all rows with previews.
+    if remaining() >= 3:
         recent = preview_reader.tail(task["log"], n=3)
-        if recent:
-            parts.append(Panel(Text("\n".join(recent)), title="Recent log", border_style="grey35"))
-    if notice:
-        parts.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
-    parts.append(Text("[ ] stage · t tmux · k stop stage · K stop experiment", style="grey70"))
-    parts.append(Text(("Esc/q home" if return_home else "Esc/q back") +
-                      " · m next results · x hide tab (u restores tabs) · ? help", style="grey70"))
-    if height >= 60:
-        parts.append(Text(legend("detail"), style="grey70"))
+        recent_panel = (Panel(Text("\n".join(recent), overflow="ellipsis", no_wrap=True),
+                              title="Recent log", border_style="grey35") if recent else None)
+        reserve = content_height(recent_panel, max(1, width - 4)) if recent_panel else 0
+        if remaining() < reserve + 3:
+            reserve = 0
+        previews = output_previews(task, preview_reader)
+        entries = [(os.path.relpath(name, task["directory"]), size, preview)
+                   for name, size, preview in previews[:4]]
+        # Preserve filenames before adding tail lines, so long rows do not hide
+        # which configured source is being shown.
+        candidates = [(count, depth) for count in range(len(entries), 0, -1)
+                      for depth in (2, 1, 0)] if entries else [(0, 0)]
+        for count, depth in candidates:
+            lines = []
+            for name, size, preview in entries[:count]:
+                lines.append(f"{name} ({size:,} bytes)")
+                lines.extend(preview[-depth:] if depth else [])
+            if not lines:
+                lines = ["No configured outputs are present yet." if task.get("outputs")
+                         else "No output previews configured; add outputs to this task in plan.json."]
+            panel = Panel(Text("\n".join(lines), overflow="ellipsis", no_wrap=True),
+                          title="Outputs", border_style="grey35")
+            if remaining([panel]) >= reserve:
+                parts.append(panel)
+                break
+        if recent_panel:
+            for count in range(len(recent), 0, -1):
+                panel = Panel(Text("\n".join(recent[-count:]), overflow="ellipsis", no_wrap=True),
+                              title="Recent log", border_style="grey35")
+                if remaining([panel]) >= 0:
+                    parts.append(panel)
+                    break
+    parts.extend(footer)
     return Panel(Group(*parts), border_style="grey35")
 
 

@@ -133,7 +133,7 @@ class Home:
         counts = Counter(r["state"] for r in all_rows)
         running = sum(bool(r["pids"]) for r in all_rows)
         parts = [Text("DMUX / ALL EXPERIMENTS", style="bold bright_cyan"),
-            Text(f'{len(self.entries)} projects · {running} running · {counts["needs attention"]} need attention · {counts["complete"]} complete', style="grey74"),
+            Text(f'{len(self.entries)} {"project" if len(self.entries) == 1 else "projects"} · {running} running · {counts["needs attention"]} need attention · {counts["complete"]} complete', style="grey74"),
             Text(f'Filter: {self.filter}   Search: {self.query}' + ("▏" if searching else ""), style="cyan")]
         opened_rows = {r["id"]: r for r in self.rows()}
         tabs = Text("OPEN  ", style="grey62", overflow="ellipsis", no_wrap=True)

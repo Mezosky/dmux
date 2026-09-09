@@ -366,6 +366,13 @@ terminal; Ctrl-Z suspends dmux after restoration, and `fg` resumes the display.
 Telemetry refreshes run in a background worker, retaining the last snapshot
 while a query is pending. tmux browser refreshes also run in the background;
 explicit navigation and confirmed removal revalidate the selected target.
+Detail and dashboard panels use measured content height to fill available rows;
+compact layouts reserve results, integrity messages, and keyboard controls before
+output previews and logs. Preview filenames are relative to the results directory,
+and tab labels expand into spare columns. GPU status distinguishes disabled
+telemetry from query failures; a failure retains the last good reading with a
+stale indicator and the error reason.
+
 Detail previews cache unchanged file tails and rediscover output patterns every
 two seconds. Closing a detail discards its preview and metric caches.
 

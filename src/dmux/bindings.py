@@ -28,8 +28,6 @@ BINDINGS = (
     Binding(("x", "X"), "x", "x", "Hide experiment tab; jobs keep running"),
     Binding(("u", "U"), "u", "u", "Restore hidden experiment tabs"),
     Binding(("m",), "m", "m", "Page result metrics", ("detail",)),
-    Binding(("r", "R"), "r", "r", "Refresh", ("dashboard", "detail", "home", "sessions")),
-    Binding(("?",), "?", "?", "Show keyboard help", ("dashboard", "detail", "home", "sessions")),
     Binding(("q", "Q", "\x1b"), "q/Esc", "q", "Back from details; q quits dashboard"),
     Binding(("j", DOWN), "j/↓", "j", "Next run", ("home",)),
     Binding(("k", UP), "k/↑", "k", "Previous run", ("home",)),
@@ -45,6 +43,8 @@ BINDINGS = (
     Binding(("s", "S", "\t"), "s/Tab", "s", "Toggle sessions / panes", ("sessions",)),
     Binding(("d", "D"), "d", "d", "Review session removal; exact name required", ("sessions",)),
     Binding(("q", "Q", "\x1b"), "q/Esc", "q", "Close browser", ("sessions",)),
+    Binding(("r", "R"), "r", "r", "Refresh", ("dashboard", "detail", "home", "sessions")),
+    Binding(("?",), "?", "?", "Show keyboard help", ("dashboard", "detail", "home", "sessions")),
 )
 
 

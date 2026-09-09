@@ -17,9 +17,9 @@ Generated from `dmux.bindings.BINDINGS`.
 | K | Review stop for experiment; exact label required |
 | x | Hide experiment tab; jobs keep running |
 | u | Restore hidden experiment tabs |
+| q/Esc | Back from details; q quits dashboard |
 | r | Refresh |
 | ? | Show keyboard help |
-| q/Esc | Back from details; q quits dashboard |
 
 ## Detail
 
@@ -36,16 +36,14 @@ Generated from `dmux.bindings.BINDINGS`.
 | x | Hide experiment tab; jobs keep running |
 | u | Restore hidden experiment tabs |
 | m | Page result metrics |
+| q/Esc | Back from details; q quits dashboard |
 | r | Refresh |
 | ? | Show keyboard help |
-| q/Esc | Back from details; q quits dashboard |
 
 ## Home
 
 | Keys | Action |
 | --- | --- |
-| r | Refresh |
-| ? | Show keyboard help |
 | j/↓ | Next run |
 | k/↑ | Previous run |
 | / | Search |
@@ -54,13 +52,13 @@ Generated from `dmux.bindings.BINDINGS`.
 | x | Close recent tab only |
 | Enter / t | Open details / tmux |
 | q | Quit home |
+| r | Refresh |
+| ? | Show keyboard help |
 
 ## Sessions
 
 | Keys | Action |
 | --- | --- |
-| r | Refresh |
-| ? | Show keyboard help |
 | / | Search |
 | j/n/↓ | Next session or pane |
 | k/p/↑ | Previous session or pane |
@@ -68,3 +66,5 @@ Generated from `dmux.bindings.BINDINGS`.
 | s/Tab | Toggle sessions / panes |
 | d | Review session removal; exact name required |
 | q/Esc | Close browser |
+| r | Refresh |
+| ? | Show keyboard help |

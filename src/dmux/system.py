@@ -46,6 +46,14 @@ def running_processes(adapter, *, table=None, cwd_cache=None) -> list[dict]:
     return processes
 
 
+def retain_gpu_reading(previous: dict, current: dict) -> dict:
+    """Keep cached telemetry on failure, with an explicit stale marker."""
+    if (current.get("error") and current["error"] != "disabled"
+            and not current.get("devices") and previous.get("devices")):
+        return {**current, "devices": previous["devices"], "stale": True}
+    return {"stale": False, **current}
+
+
 class HostSampler:
     """Share one process enumeration/GPU query across registered projects."""
 
@@ -70,14 +78,15 @@ class HostSampler:
         now = time.monotonic()
         if now - self.gpu_time >= 5:
             if self.gpu_worker is None:
-                self.devices = gpu_info()
+                self.devices = retain_gpu_reading(self.devices, gpu_info())
             else:
                 self.gpu_worker.request()
             self.gpu_time = now
         result = self.gpu_worker.take() if self.gpu_worker is not None else None
         if result is not None:
             devices, error = result
-            self.devices = devices if error is None else {"devices": [], "error": str(error)}
+            self.devices = retain_gpu_reading(self.devices,
+                                              devices if error is None else {"devices": [], "error": str(error)})
         return self.devices
 
 
@@ -96,8 +105,12 @@ def gpu_info() -> dict:
             timeout=2,
             check=True,
         )
+    except subprocess.TimeoutExpired:
+        return {"devices": [], "error": "nvidia-smi timed out after 2s"}
+    except FileNotFoundError:
+        return {"devices": [], "error": "nvidia-smi is not installed"}
     except (OSError, subprocess.SubprocessError) as exc:
-        return {"devices": [], "error": f"GPU telemetry unavailable ({type(exc).__name__})"}
+        return {"devices": [], "error": f"nvidia-smi failed: {exc}"}
     devices, invalid = [], 0
     for line in result.stdout.splitlines():
         try:

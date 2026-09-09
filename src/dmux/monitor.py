@@ -12,7 +12,7 @@ from .adapters.base import resolve_path
 from .adapters.filesystem import FilesystemAdapter
 from .connectors import JsonCache, tail_log
 from .projects import experiment_roster, project_paths, run_tag
-from .system import gpu_info, running_processes
+from .system import gpu_info, retain_gpu_reading, running_processes
 from .status import scheduler_records
 
 
@@ -243,7 +243,7 @@ class Monitor:
             )
 
         if now - self.gpu_time >= 5:
-            self.gpu_cache = self.gpu_source()
+            self.gpu_cache = retain_gpu_reading(self.gpu_cache, self.gpu_source())
             self.gpu_time = now
         disk = shutil.disk_usage(self.queue)
         if disk.free < self.adapter.disk_warning_gib * 1024**3:

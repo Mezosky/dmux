@@ -26,3 +26,10 @@ from snapshots and progress decisions.
 
 Home, session-list, and doctor JSON reports have their own shapes; this snapshot
 contract applies to `Monitor.snapshot()` and scoped `dmux json` output.
+
+
+GPU telemetry includes an additive `stale` boolean. A failed query may retain
+`gpu.devices` from the last good reading with `stale: true` and the current
+failure in `gpu.error`. Those values must not be presented as a fresh reading.
+Disabling telemetry clears device readings and reports `error: "disabled"`;
+a successful query clears the stale marker.

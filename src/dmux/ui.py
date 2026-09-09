@@ -25,6 +25,14 @@ COLORS = {
 }
 
 
+def content_height(renderable, width):
+    """Measure wrapped Rich content at its actual available column width."""
+    from rich.console import Console
+
+    console = Console(width=max(1, width), color_system=None)
+    return len(console.render_lines(renderable, console.options, pad=False))
+
+
 def selected_task(snapshot, model, stage=None):
     """Resolve explicit, live, attention, pending, then last completed stage."""
     tasks = [task for task in snapshot["tasks"] if task["model"] == model]
@@ -95,23 +103,32 @@ def experiment_tabs(models, selected: str, presentation: Presentation, width: in
     if not tags:
         return Text()
     selected_index = tags.index(selected) if selected in tags else 0
-    capacity = max(1, (width - 14) // 20)
+    from rich.cells import cell_len
+
+    # Page around selection, sharing spare columns among labels that need them.
+    capacity = max(1, min(len(tags), (width - 16) // 12))
     start = min(max(0, selected_index - capacity // 2), max(0, len(tags) - capacity))
-    visible = tags[start : start + capacity]
-    tabs = Text("EXPERIMENTS  ", style="bold grey62")
+    visible = tags[start:start + capacity]
+    tabs = Text("EXPERIMENTS  ", style="bold grey62", no_wrap=True)
     if start:
         tabs.append("…  ", style="grey50")
-    for tag in visible:
-        name = presentation.entity_name(tag)
-        if len(name) > 15:
-            name = name[:14] + "…"
-        if tag == selected:
-            tabs.append(f" {name} ", style="bold black on bright_cyan")
-        else:
-            tabs.append(f" {name} ", style="grey74 on grey15")
+    suffix = "…" if start + len(visible) < len(tags) else ""
+    available = max(1, width - tabs.cell_len - len(suffix) - 3 * len(visible))
+    names = [presentation.entity_name(tag) for tag in visible]
+    lengths = [cell_len(name) for name in names]
+    allocations = [0] * len(names)
+    while available and any(a < size for a, size in zip(allocations, lengths)):
+        for i, size in enumerate(lengths):
+            if available and allocations[i] < size:
+                allocations[i] += 1
+                available -= 1
+    for tag, name, allocation in zip(visible, names, allocations):
+        label = Text(name)
+        label.truncate(allocation, overflow="ellipsis")
+        style = "bold black on bright_cyan" if tag == selected else "grey74 on grey15"
+        tabs.append(" " + label.plain + " ", style=style)
         tabs.append(" ")
-    if start + len(visible) < len(tags):
-        tabs.append("…", style="grey50")
+    tabs.append(suffix, style="grey50")
     return tabs
 
 
@@ -179,19 +196,29 @@ def render_dashboard(
         if len(devices) > 1:
             health.append(f" (+{len(devices) - 1} GPUs)", style="grey62")
     else:
-        health.append("   GPU unavailable", style="grey62")
+        health.append("   GPU disabled" if snapshot["gpu"].get("error") == "disabled"
+                      else "   GPU unavailable", style="grey62")
     health.append(
         f'   Disk {snapshot["disk_free_gib"]:.1f} GiB free',
         style="yellow" if snapshot["disk_free_gib"] < 20 else "grey70",
     )
     parts.append(health)
+    gpu_error = snapshot["gpu"].get("error")
+    if gpu_error and gpu_error != "disabled":
+        explanation = str(gpu_error)
+        if snapshot["gpu"].get("stale"):
+            explanation += " · showing last good reading"
+        parts.append(Text("GPU: " + explanation, style="yellow"))
+    elif not devices and not gpu_error:
+        parts.append(Text("GPU: no devices reported", style="grey62"))
 
     active = snapshot.get("active")
     if not snapshot["models"]:
         parts.append(Text("All experiment tabs are hidden. Press u to restore them."
                           if snapshot.get("hidden_count") else "No experiments are declared in this plan yet.",
                           style="yellow"))
-        parts.append(Text("q quit · r refresh · ? help   |   Read-only; jobs keep running.", style="grey58"))
+        parts.append(Text(("u restore · " if snapshot.get("hidden_count") else "") +
+                          "q quit · r refresh · ? help · read-only", style="grey58", no_wrap=True))
         return Group(*parts)
     selected = selected or (active["model"] if active else snapshot["models"][0]["tag"])
     parts.append(experiment_tabs(snapshot["models"], selected, presentation, width))
@@ -305,7 +332,18 @@ def render_dashboard(
             Text("tmux: " + linked + " · t browse", style="grey70", overflow="ellipsis", no_wrap=True)
         )
 
-    if expanded or height >= 40:
+    footer = [Text("! " + warning, style="yellow") for warning in snapshot["warnings"][:2]]
+    if notice:
+        footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
+    keys = "n/p tabs · Enter details · t tmux · k/K stop · q quit · ? help"
+    if expanded or width >= 160:
+        keys = legend("dashboard")
+    suffix = " · read-only"
+    if width >= 120:
+        suffix = " · read-only monitoring; stops require confirmation"
+    footer.append(Text(keys + suffix, style="grey58", no_wrap=True, overflow="ellipsis"))
+
+    if expanded or content_height(Group(*parts, *footer), width) + 3 <= height:
         steps = Table(box=None, expand=True, padding=(0, 1))
         steps.add_column("STAGE")
         steps.add_column("STATE", justify="right")
@@ -382,32 +420,23 @@ def render_dashboard(
             columns.add_column(ratio=1)
             columns.add_column(ratio=1)
             columns.add_row(steps_panel, detail_panel)
-            parts.append(columns)
+            optional: list[RenderableType] = [columns]
         else:
-            parts += [steps_panel, detail_panel] if expanded else [detail_panel]
-        if (expanded or height >= 48) and snapshot.get("recent"):
-            parts.append(
-                Panel(
-                    Text("\n".join(snapshot["recent"]), style="grey74"),
-                    title=Text("Recent activity · active process", style="grey74"),
-                    border_style="grey35",
-                    padding=(0, 1),
-                )
-            )
+            optional = [steps_panel, detail_panel] if expanded else [detail_panel]
+        for panel in optional:
+            if expanded or content_height(Group(*parts, panel, *footer), width) <= height:
+                parts.append(panel)
+    if snapshot.get("recent"):
+        recent = snapshot["recent"][-3:]
+        for count in range(len(recent), 0, -1):
+            panel = Panel(Text("\n".join(recent[-count:]), style="grey74"),
+                          title=Text("Recent activity · active process", style="grey74"),
+                          border_style="grey35", padding=(0, 1))
+            if expanded or content_height(Group(*parts, panel, *footer), width) <= height:
+                parts.append(panel)
+                break
 
-    for warning in snapshot["warnings"][:2]:
-        parts.append(Text("! " + warning, style="yellow"))
-    if notice:
-        parts.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
-    keys = "n/p tabs · Enter details · t tmux · k/K stop · q quit · ? help"
-    if expanded or width >= 160:
-        keys = legend("dashboard")
-    parts.append(
-        Text(
-            keys + ("   |   Read-only monitoring; stops require confirmation." if width >= 100 else " · read-only monitoring"),
-            style="grey58",
-        )
-    )
+    parts.extend(footer)
     if expanded:
         parts.append(
             Text(
