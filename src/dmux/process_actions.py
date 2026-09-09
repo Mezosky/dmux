@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import psutil
 
 
 class ProcessActionError(RuntimeError):
@@ -29,6 +28,8 @@ def _identity(process):
 
 
 def _process(target):
+    import psutil
+
     process = psutil.Process(target.pid)
     if _identity(process) != target:
         raise ProcessActionError(f"PID {target.pid} changed; refresh before stopping it")
@@ -36,6 +37,8 @@ def _process(target):
 
 
 def _tree(roots):
+    import psutil
+
     protected = {psutil.Process().pid, *(process.pid for process in psutil.Process().parents())}
     found = {}
     for root in roots:
@@ -49,6 +52,8 @@ def _tree(roots):
 
 
 def prepare_stop(snapshot, model: str, stage: str | None = None) -> StopRequest:
+    import psutil
+
     tasks = [task for task in snapshot["tasks"] if task["model"] == model
              and (stage is None or task["name"] == stage) and task.get("pid")]
     if not tasks:
@@ -70,6 +75,8 @@ def prepare_stop(snapshot, model: str, stage: str | None = None) -> StopRequest:
 
 
 def stop(request: StopRequest, *, confirmation: str) -> str:
+    import psutil
+
     if confirmation != request.label:
         raise ProcessActionError("Confirmation did not match; no signals sent")
     try:

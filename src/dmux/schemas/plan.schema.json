@@ -1,0 +1,552 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Mezosky/dmux/main/src/dmux/schemas/plan.schema.json",
+  "title": "dmux generic filesystem plan (v1)",
+  "description": "Structural plan validation. dmux also validates canonical identities, project references, stage label counts, relative globs and finite numeric values.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "results_dir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "unit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "entity_heading": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pause_file": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "experiments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "minLength": 1
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "tag"
+        ]
+      }
+    },
+    "roster": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string",
+            "minLength": 1
+          },
+          "project": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "tag"
+        ]
+      }
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "stage_labels": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "short_labels": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "disk_warning_gib": {
+      "type": "number",
+      "minimum": 0
+    },
+    "queue_process": {
+      "$ref": "#/$defs/process"
+    },
+    "projects": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[^/]+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "root": {
+            "type": "string",
+            "minLength": 1
+          },
+          "results_dir": {
+            "type": "string",
+            "minLength": 1
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "tmux_session": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "tmux": {
+      "type": "object",
+      "properties": {
+        "socket": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "links": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  },
+  "required": [
+    "tasks"
+  ],
+  "$defs": {
+    "task": {
+      "type": "object",
+      "properties": {
+        "experiment": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        },
+        "log": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "directory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tmux_session": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "process": {
+          "$ref": "#/$defs/process"
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/progress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/completion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metrics": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/metric"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              {
+                "required": [
+                  "progress"
+                ],
+                "properties": {
+                  "progress": {
+                    "type": "object"
+                  }
+                }
+              },
+              {
+                "required": [
+                  "completion"
+                ],
+                "properties": {
+                  "completion": {
+                    "type": "object"
+                  }
+                }
+              },
+              {
+                "required": [
+                  "metrics"
+                ],
+                "properties": {
+                  "metrics": {
+                    "type": "array",
+                    "minItems": 1
+                  }
+                }
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "directory"
+            ],
+            "properties": {
+              "directory": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "process": {
+      "type": "object",
+      "properties": {
+        "script": {
+          "type": "string",
+          "minLength": 1
+        },
+        "output_flag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "default_output": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "progress": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "json",
+            "jsonl",
+            "files"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "current_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "total_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status_field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "group_label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "glob": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identity": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1
+        },
+        "semantic_identity": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "valid_statuses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "excluded_statuses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allowed_values": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "minLength": 1
+          },
+          "additionalProperties": {
+            "type": "array"
+          }
+        },
+        "expected_by_group": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "max_files": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "json",
+                  "jsonl"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "path"
+            ]
+          }
+        }
+      ]
+    },
+    "completion": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "file",
+            "json"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "equals": {},
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "path"
+      ]
+    },
+    "metric": {
+      "type": "object",
+      "properties": {
+        "label": {
+          "type": "string",
+          "minLength": 1
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "x_field": {
+          "type": "string"
+        },
+        "records_field": {
+          "type": "string"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "json",
+            "jsonl",
+            "csv"
+          ]
+        },
+        "goal": {
+          "enum": [
+            "min",
+            "max",
+            null
+          ]
+        },
+        "precision": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "scale": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "label",
+        "path",
+        "field"
+      ]
+    }
+  }
+}

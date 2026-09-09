@@ -13,6 +13,7 @@ from .connectors import JsonCache
 from .discovery import integer_fields, sample_file
 from .monitor import Monitor
 from .projects import project_paths
+from .plan_schema import validate_plan_schema
 
 
 def diagnose(plan_dir, *, project_root=None, results_dir=None, processes=None) -> dict:
@@ -47,6 +48,7 @@ def diagnose(plan_dir, *, project_root=None, results_dir=None, processes=None) -
             path=path, hint="Check JSON syntax and use dmux init --dry-run for a starter plan.")
         return report()
     try:
+        validate_plan_schema(plan)
         adapter = FilesystemAdapter()
         adapter.configure(plan)
         effective_root = root if project_root else resolve_path(plan.get("project_root", root), directory)

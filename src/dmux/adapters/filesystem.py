@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from itertools import islice
 import math
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Mapping, Sequence, cast
 
 from ..connectors import IncrementalJsonlReader, JsonCache
 from .base import Presentation, command_option, resolve_path
@@ -171,7 +171,7 @@ class FilesystemAdapter:
     def configure(self, plan: Mapping) -> None:
         self._validate(plan)
         tasks = [dict(task) for task in plan.get("tasks", [])]
-        stages = tuple(dict.fromkeys(task.get("name", task.get("stage", "run")) for task in tasks))
+        stages = tuple(dict.fromkeys(cast(str, task.get("name", task.get("stage", "run"))) for task in tasks))
         configured_stage_labels = plan.get("stage_labels", {})
         labels = {
             stage: configured_stage_labels.get(stage, stage.replace("_", " ").title())
@@ -247,10 +247,10 @@ class FilesystemAdapter:
                 raise ValueError(f"{prefix} experiment and stage must be non-empty strings")
             if not isinstance(task.get("project"), (str, type(None))):
                 raise ValueError(f"{prefix}.project must be a string")
-            key = (run_tag(task), stage)
-            if key in identities:
+            identity_key = (run_tag(task), stage)
+            if identity_key in identities:
                 raise ValueError(f"{prefix} repeats an experiment/stage identity; use a distinct experiment tag for another execution")
-            identities.add(key)
+            identities.add(identity_key)
             validate_metrics(task.get("metrics", []))
             if task.get("metrics") and not task.get("directory"):
                 raise ValueError(f"{prefix}.directory is required for metrics")

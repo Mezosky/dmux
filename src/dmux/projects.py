@@ -27,7 +27,7 @@ def project_paths(plan: Mapping, root: Path, results_dir=None) -> dict[str | Non
         return resolve_path(value, base)
 
     default_results = results_dir if results_dir is not None else plan.get("results_dir", root)
-    paths = {None: ProjectPaths(root, location(default_results, root, "results_dir"))}
+    paths: dict[str | None, ProjectPaths] = {None: ProjectPaths(root, location(default_results, root, "results_dir"))}
     projects = plan.get("projects", {})
     if not isinstance(projects, Mapping):
         raise ValueError("projects must map project IDs to root/results_dir objects")

@@ -268,3 +268,31 @@ hosts and does not infer liveness from counters alone. Logs are read only when a
 
 `pause_file` is optional and relative to the plan directory. dmux never creates or removes
 it; if omitted, the generic adapter does not infer pause state from filenames.
+
+## Editor schema and compatibility
+
+Add this optional field at the top of a plan to enable editor validation:
+
+```json
+"$schema": "https://raw.githubusercontent.com/Mezosky/dmux/main/src/dmux/schemas/plan.schema.json"
+```
+
+The [machine-readable JSON Schema](../src/dmux/schemas/plan.schema.json) is also
+bundled with the installed package. `dmux doctor` validates against that local
+copy without downloading the URL in a plan. Structural validation is followed
+by dmux's semantic checks for duplicate canonical experiment/stage keys, project
+references, one short label per stage, relative file globs, and finite numbers.
+Unknown extension properties are allowed for compatibility; they do not configure
+new behavior in the generic adapter.
+
+`short_labels` is an optional array with one non-empty overview heading for each
+distinct stage, in first-appearance order. For stages `train` then `evaluate`,
+use `"short_labels": ["Train", "Eval"]`. Task `detail` is an optional text string
+shown as that stage's dashboard detail when no connector-specific detail replaces
+it. It does not affect progress, completion, or process matching.
+
+Scheduler files are advisory: `status.json` must be an object, `active` must be
+an object or null, and `completed_tasks` must be an array. `completion.json` must
+be an array of exit records. Each exit record requires an integer `returncode`
+(boolean values are rejected). Malformed records are ignored with a warning;
+valid neighboring records remain usable. Missing files are allowed.

@@ -1,7 +1,6 @@
 """Demo-only connection validation: no real research projects or model downloads."""
 import json
 import os
-from pathlib import Path
 
 import pytest
 

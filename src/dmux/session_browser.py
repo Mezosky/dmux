@@ -6,11 +6,13 @@ import time
 
 from .sessions import SessionError, SessionManager
 from .terminal import keyboard
+from .bindings import action_key, render_help
+from .refresh import BackgroundRefresh
 from .tmux import clean
 
 
 class SessionBrowser:
-    def __init__(self, navigator, tasks=(), *, preferred=None, sessions=True):
+    def __init__(self, navigator, tasks=(), *, preferred=None, sessions=True, background=False):
         self.navigator = navigator
         self.manager = SessionManager(navigator)
         self.tasks = list(tasks)
@@ -25,6 +27,8 @@ class SessionBrowser:
         self.data = {"panes": [], "associations": {}, "inside": False, "error": None}
         self.window_names = {}
         self.locations = {}
+        self.help = False
+        self.worker = BackgroundRefresh(self._read) if background else None
         self.refresh()
         preferred_pane = self.data["associations"].get(preferred, {}).get("pane")
         if preferred_pane:
@@ -47,18 +51,43 @@ class SessionBrowser:
                 grouped[pane["session_id"]] = pane
         return list(grouped.values())
 
-    def refresh(self):
-        rows = self.rows
-        previous = rows[min(self.index, len(rows) - 1)]["target"] if rows else None
-        self.data = self.navigator.snapshot(self.tasks)
+    def _read(self):
+        data = self.navigator.snapshot(self.tasks)
         output, _ = self.navigator.read(["list-windows", "-a", "-F", "#{window_id}\t#{window_name}"])
-        self.window_names = {parts[0]: clean(parts[1]) for line in output.splitlines()
-                             if len(parts := line.split("\t")) == 2}
+        names = {parts[0]: clean(parts[1]) for line in output.splitlines()
+                 if len(parts := line.split("\t")) == 2}
         output, _ = self.navigator.read(["list-sessions", "-F",
                                          "#{session_id}\t#{@dmux-project-root}\t#{@dmux-results-dir}"])
-        self.locations = {parts[0]: (clean(parts[1]), clean(parts[2])) for line in output.splitlines()
-                          if len(parts := line.split("\t")) == 3}
-        self.index = next((i for i, p in enumerate(self.rows) if p["target"] == previous), 0)
+        locations = {parts[0]: (clean(parts[1]), clean(parts[2])) for line in output.splitlines()
+                     if len(parts := line.split("\t")) == 3}
+        return data, names, locations
+
+    def _apply(self, result):
+        rows = self.rows
+        previous = rows[min(self.index, len(rows) - 1)]["target"] if rows else None
+        self.data, self.window_names, self.locations = result
+        preferred = self.data["associations"].get(self.preferred, {}).get("pane")
+        self.index = next((i for i, p in enumerate(self.rows) if p["target"] == previous),
+                          next((i for i, p in enumerate(self.rows) if preferred
+                                and p["session_id"] == preferred["session_id"]
+                                and (self.sessions or p["pane_id"] == preferred["pane_id"])), 0))
+
+    def refresh(self):
+        if self.worker is not None:
+            self.worker.request()
+        else:
+            self._apply(self._read())
+
+    def poll(self):
+        result = self.worker.take() if self.worker is not None else None
+        if result is None:
+            return False
+        value, error = result
+        if error is not None:
+            self.notice = f"Refresh unavailable: {error}"
+        else:
+            self._apply(value)
+        return True
 
     def key(self, key):
         """Return ('open', pane), ('close', None), or None."""
@@ -90,6 +119,14 @@ class SessionBrowser:
                 self.query += key
             self.index = 0
             return None
+        if self.help:
+            if key in ("?", "q", "Q", "\x1b"):
+                self.help = False
+            return None
+        key = action_key(key, "sessions")
+        if key == "?":
+            self.help = True
+            return None
         rows = self.rows
         if key in "qQ\x1b":
             return "close", None
@@ -120,7 +157,10 @@ class SessionBrowser:
         from rich.table import Table
         from rich.text import Text
 
-        heading = Text("TMUX  /  SESSION & PANE PICKER", style="bold bright_cyan")
+        if self.help:
+            return render_help("sessions")
+        heading = Text("TMUX  /  Loading sessions…" if self.worker and self.worker.pending and not self.data["panes"]
+                       else "TMUX  /  SESSION & PANE PICKER", style="bold bright_cyan")
         if self.removal:
             removal = self.removal
             details = Text(f'Remove session "{removal.name}"?\n', style="bold red")
@@ -171,7 +211,7 @@ class SessionBrowser:
         if self.notice:
             parts.append(Text(self.notice, style="yellow", overflow="ellipsis", no_wrap=True))
         parts.append(Text("↑/↓ j/k select · / search · Tab windows/sessions · d remove", style="grey70"))
-        parts.append(Text("r refresh · Esc/q back", style="grey70"))
+        parts.append(Text("r refresh · Esc/q back · ? help", style="grey70"))
         return Panel(Group(*parts), border_style="grey35", box=box.ROUNDED)
 
 
@@ -180,7 +220,7 @@ def browse(navigator, *, json_output=False):
     from rich.live import Live
 
     console = Console(highlight=False)
-    browser = SessionBrowser(navigator)
+    browser = SessionBrowser(navigator, background=console.is_terminal and not json_output)
     if json_output:
         print(json.dumps(browser.data, indent=2))
         return
@@ -203,7 +243,8 @@ def browse(navigator, *, json_output=False):
                             else:
                                 running = False
                             break
-                    if pressed or console.size != previous_size:
+                    refreshed = browser.poll()
+                    if pressed or refreshed or console.size != previous_size:
                         live.update(browser.render(height=console.height), refresh=True)
                         previous_size = console.size
                     if running and selected is None:

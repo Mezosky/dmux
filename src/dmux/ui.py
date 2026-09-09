@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from .adapters.base import Presentation
+from .bindings import legend
 
 
 COLORS = {
@@ -22,6 +23,16 @@ COLORS = {
     "waiting": "grey70",
     "unknown": "yellow",
 }
+
+
+def selected_task(snapshot, model, stage=None):
+    """Resolve explicit, live, attention, pending, then last completed stage."""
+    tasks = [task for task in snapshot["tasks"] if task["model"] == model]
+    return (next((task for task in tasks if task["name"] == stage), None)
+            or next((task for task in tasks if task["pid"]), None)
+            or next((task for task in tasks if task["state"] not in {"complete", "queued"}), None)
+            or next((task for task in tasks if task["state"] != "complete"), None)
+            or (tasks[-1] if tasks else None))
 
 
 def duration(seconds) -> str:
@@ -116,7 +127,7 @@ def render_dashboard(
     presentation: Presentation | None = None,
 ):
     from rich import box
-    from rich.console import Group
+    from rich.console import Group, RenderableType
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
@@ -138,7 +149,7 @@ def render_dashboard(
     title.append(f"  /  {presentation.name.upper()}", style="bold white")
     title.append(f'    ● {snapshot["state"].upper()}', style=color)
     title.append(f"    {now}", style="grey62")
-    parts = [Panel(title, border_style="grey35", box=box.ROUNDED, padding=(0, 1))]
+    parts: list[RenderableType] = [Panel(title, border_style="grey35", box=box.ROUNDED, padding=(0, 1))]
     if "expected" not in snapshot:
         parts += [Text(snapshot["message"], style="yellow"), Text(snapshot["queue"], style="grey62")]
         return Group(*parts)
@@ -177,8 +188,10 @@ def render_dashboard(
 
     active = snapshot.get("active")
     if not snapshot["models"]:
-        parts.append(Text("No experiments are declared in this plan yet.", style="yellow"))
-        parts.append(Text("q quit · r refresh   |   Read-only; jobs keep running.", style="grey58"))
+        parts.append(Text("All experiment tabs are hidden. Press u to restore them."
+                          if snapshot.get("hidden_count") else "No experiments are declared in this plan yet.",
+                          style="yellow"))
+        parts.append(Text("q quit · r refresh · ? help   |   Read-only; jobs keep running.", style="grey58"))
         return Group(*parts)
     selected = selected or (active["model"] if active else snapshot["models"][0]["tag"])
     parts.append(experiment_tabs(snapshot["models"], selected, presentation, width))
@@ -190,8 +203,8 @@ def render_dashboard(
         overview.add_column("STAGES", justify="right")
         overview.add_column("CURRENT STATE")
     else:
-        for label in presentation.short_labels:
-            overview.add_column(label, justify="center", no_wrap=True)
+        for short_label in presentation.short_labels:
+            overview.add_column(short_label, justify="center", no_wrap=True)
     for model in snapshot["models"]:
         tag = model["tag"]
         label = Text(
@@ -241,13 +254,7 @@ def render_dashboard(
     parts.append(overview)
 
     focus = [task for task in snapshot["tasks"] if task["model"] == selected]
-    current = next((task for task in focus if task["name"] == stage), None) if stage else None
-    current = current or next((task for task in focus if task["pid"]), None)
-    current = current or next(
-        (task for task in focus if task["state"] not in {"complete", "queued"}), None
-    )
-    current = current or next((task for task in focus if task["state"] != "complete"), None)
-    current = current or (focus[-1] if focus else None)
+    current = selected_task(snapshot, selected, stage)
     if current:
         info = Text(
             f'{presentation.entity_name(selected)} · {task_label(current, presentation)}',
@@ -320,11 +327,11 @@ def render_dashboard(
                 number,
             )
         if not focus:
-            model = next((model for model in snapshot["models"] if model["tag"] == selected), {})
+            blocked_model: dict = next((model for model in snapshot["models"] if model["tag"] == selected), {})
             steps.add_row("No stages declared", Text("blocked", style="yellow"), "—")
-            steps.caption = model.get("reason", "Not scheduled")
+            steps.caption = blocked_model.get("reason", "Not scheduled")
 
-        progress = current["progress"] if current else None
+        progress = (current["progress"] or {}) if current else {}
         breakdown = progress.get("breakdown", []) if progress else []
         if breakdown:
             details = Table(box=None, expand=True, padding=(0, 1))
@@ -392,7 +399,9 @@ def render_dashboard(
         parts.append(Text("! " + warning, style="yellow"))
     if notice:
         parts.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
-    keys = "n/p tabs · Enter details · t tmux · k/K stop · q quit"
+    keys = "n/p tabs · Enter details · t tmux · k/K stop · q quit · ? help"
+    if expanded or width >= 160:
+        keys = legend("dashboard")
     parts.append(
         Text(
             keys + ("   |   Read-only monitoring; stops require confirmation." if width >= 100 else " · read-only monitoring"),

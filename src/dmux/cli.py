@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import math
 from pathlib import Path
@@ -9,19 +10,22 @@ import sys
 import time
 
 from .monitor import Monitor
-from .experiment_view import render_detail, render_stop_confirmation, selected_task
-from .process_actions import ProcessActionError, prepare_stop, stop
+from ._version import __version__
+from .experiment_view import render_detail, render_stop_confirmation
+from .controller import DashboardController
+from .bindings import render_help
 from .registry import adapter_names, load_adapter
-from .session_browser import SessionBrowser
-from .system import gpu_info
+from .system import HostSampler
+from .refresh import BackgroundRefresh
 from .terminal import keyboard
 from .tmux import TmuxNavigator, parse_links
 from .ui import render_dashboard
 
 
-def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
+def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.ArgumentParser:
     result = argparse.ArgumentParser(
         prog="dmux",
+        add_help=add_help,
         description=(
             "Terminal monitoring and explicit tmux/process controls for ML experiments. "
             "Closing the dashboard leaves jobs running."
@@ -75,64 +79,59 @@ def parser(default_adapter: str = "filesystem") -> argparse.ArgumentParser:
         default="auto",
         help="Override terminal color detection / NO_COLOR",
     )
-    result.add_argument("--version", action="version", version="dmux 0.1.0")
+    result.add_argument("--version", action="version", version=f"dmux {__version__}")
+    return result
+
+
+# Each command keeps its own parser and implementation module.
+COMMANDS = {
+    "home": "home", "add": "catalog", "remove": "catalog", "projects": "catalog",
+    "init": "onboarding", "doctor": "diagnostics", "demo": "demo",
+    "sessions": "sessions", "kill": "process_actions",
+}
+
+
+def command_parser(default_adapter="filesystem"):
+    result = argparse.ArgumentParser(prog="dmux", description="Terminal experiment workspaces and monitoring")
+    result.add_argument("--version", action="version", version=f"dmux {__version__}")
+    commands = result.add_subparsers(dest="command", required=True)
+    for name in ("watch", "snapshot", "json"):
+        commands.add_parser(name, parents=[parser(default_adapter, add_help=False)],
+                            help={"watch": "Monitor a project", "snapshot": "Print a dashboard",
+                                  "json": "Print a snapshot as JSON"}[name])
+    for name in COMMANDS:
+        commands.add_parser(name, add_help=False, help=f"{name} (use {name} --help for options)")
+    commands.add_parser("adapters", help="List available adapters")
     return result
 
 
 def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return_home=False) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
-    if not argv or argv[0] == "home":
-        from .home import main as home_main
-
-        home_main(argv[1:] if argv else [])
+    if not argv:
+        argv = ["home"]
+    elif argv[0].startswith("-") and argv[0] not in {"--help", "-h", "--version"}:
+        argv.insert(0, "watch")  # Preserve documented scoped flags without a command.
+    argument_parser = command_parser(default_adapter)
+    args, extra = argument_parser.parse_known_args(argv)
+    if args.command in COMMANDS:
+        module = importlib.import_module("." + COMMANDS[args.command], __package__)
+        forwarded = [args.command, *extra] if args.command in {"add", "remove"} else extra
+        try:
+            module.main(forwarded)
+        except ImportError as exc:
+            if exc.name not in {"psutil", "rich", "jsonschema"} and not (exc.name or "").startswith("rich."):
+                raise
+            argument_parser.exit(2, f"Missing {exc.name}. Install dmux with its dependencies.\n")
         return
-    command = argv[0] if argv and not argv[0].startswith("-") else "watch"
-    if command in {"add", "remove", "projects"}:
-        from .catalog import main as catalog_main
-
-        catalog_main(argv[1:] if command == "projects" else argv)
-        return
-    if command == "init":
-        from .onboarding import main as init_main
-
-        init_main(argv[1:])
-        return
-    if command == "doctor":
-        from .diagnostics import main as doctor_main
-
-        doctor_main(argv[1:])
-        return
-    if command == "demo":
-        from .demo import main as demo_main
-
-        demo_main(argv[1:])
-        return
-    if command == "sessions":
-        from .sessions import main as sessions_main
-
-        sessions_main(argv[1:])
-        return
-    if command == "kill":
-        from .process_actions import main as kill_main
-
-        kill_main(argv[1:])
-        return
-    if command == "adapters":
+    if extra:
+        argument_parser.error("unrecognized arguments: " + " ".join(extra))
+    if args.command == "adapters":
         print("\n".join(adapter_names()))
         return
-    if command in {"watch", "snapshot", "json"}:
-        if argv and argv[0] == command:
-            argv = argv[1:]
-        if command == "snapshot":
-            argv.append("--once")
-        elif command == "json":
-            argv.append("--json")
-    elif argv and not argv[0].startswith("-"):
-        parser(default_adapter).error(
-            f"Unknown command {command!r}; use home, add, remove, projects, init, doctor, watch, snapshot, json, demo, sessions, kill, or adapters"
-        )
-    argument_parser = parser(default_adapter)
-    args = argument_parser.parse_args(argv)
+    args.once = args.once or args.command == "snapshot"
+    args.json = args.json or args.command == "json"
+    if args.once and args.json:
+        argument_parser.error("snapshot/--once and json/--json are mutually exclusive")
     if not math.isfinite(args.interval) or args.interval < 0.25:
         argument_parser.error("--interval must be finite and >=0.25 seconds")
     try:
@@ -155,12 +154,14 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         ),
         no_color=False if args.color == "always" else True if args.color == "never" else None,
     )
+    sampler = HostSampler()
     monitor = Monitor(
         queue,
         project_root=args.project_root,
         results_dir=args.results_dir,
         adapter=adapter,
-        gpu=(lambda: {"devices": [], "error": "disabled"}) if args.no_gpu else gpu_info,
+        gpu=(lambda: {"devices": [], "error": "disabled"}) if args.no_gpu else sampler.gpu,
+        processes=lambda: sampler.processes(adapter),
     )
     try:
         links = parse_links(args.tmux_link)
@@ -180,6 +181,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         data["tmux"] = navigator.snapshot(data["tasks"])
         return data
 
+    refresh = BackgroundRefresh(fresh_snapshot)
     snapshot["tmux"] = navigator.snapshot(snapshot["tasks"])
     tags = {model["tag"] for model in snapshot["models"]}
     if args.model and tags and args.model not in tags:
@@ -205,153 +207,65 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         )
         return
 
-    selected, stage = args.model, args.stage
-    updated, running = time.monotonic(), True
-    picker = SessionBrowser(navigator, snapshot["tasks"], preferred=args.model) if _entry == "tmux" else None
-    notice = None
-    detailed, pending_stop, stop_confirmation = _entry == "detail", None, ""
-    from .metrics import MetricReader
-
-    metric_reader, metric_offset = MetricReader(), 0
-    hidden = set()
-
-    def visible_snapshot():
-        visible = [m for m in snapshot["models"] if m["tag"] not in hidden]
-        return {**snapshot, "models": visible, "experiments": visible,
-                "active": snapshot.get("active") if (snapshot.get("active") or {}).get("model") not in hidden else None}
-
-    def current_model():
-        visible = visible_snapshot()
-        selected_tag = selected if any(m["tag"] == selected for m in visible["models"]) else None
-        return selected_tag or (visible.get("active") or {}).get("model") or next(
-            (m["tag"] for m in visible["models"]), None)
-
+    controller = DashboardController(snapshot, adapter, navigator, selected=args.model,
+                                     stage=args.stage, entry=_entry, return_home=_return_home)
     try:
-        while running:
+        while controller.running:
             navigate, previous_size = None, None
             with keyboard() as read_keys, Live(
                 console=console, screen=True, auto_refresh=False, vertical_overflow="crop"
             ) as live:
-                while running and navigate is None:
+                while controller.running and navigate is None:
                     redraw = False
                     for key in read_keys():
                         redraw = True
-                        if key == "\x03":
-                            running = False
-                        elif pending_stop is not None:
-                            if key == "\x1b":
-                                pending_stop, stop_confirmation = None, ""
-                            elif key in "\r\n":
-                                try:
-                                    notice = stop(pending_stop, confirmation=stop_confirmation)
-                                except ProcessActionError as exc:
-                                    notice = str(exc)
-                                pending_stop, stop_confirmation = None, ""
-                                updated = -math.inf
-                            elif key in "\b\x7f":
-                                stop_confirmation = stop_confirmation[:-1]
-                            elif key.isprintable():
-                                stop_confirmation += key
-                        elif picker is not None:
-                            action = picker.key(key)
-                            if action:
-                                notice = picker.notice
-                                picker = None
-                                if action[0] == "open":
-                                    navigate = action[1]
-                                    break
-                                if _entry == "tmux" and _return_home:
-                                    running = False
-                        elif key in "qQ\x1b":
-                            if detailed:
-                                detailed = False
-                                metric_reader.clear()
-                                if _return_home:
-                                    running = False
-                            elif key in "qQ":
-                                running = False
-                        elif key in "\r\n" and current_model():
-                            selected, detailed = current_model(), True
-                        elif key == "m" and detailed:
-                            metric_offset += 1
-                        elif key in "kK" and current_model():
-                            task = selected_task(snapshot, current_model(), stage)
-                            try:
-                                pending_stop = prepare_stop(snapshot, current_model(),
-                                                            task["name"] if key == "k" and task else None)
-                                stop_confirmation = ""
-                            except ProcessActionError as exc:
-                                notice = str(exc)
-                        elif key in "xX" and current_model():
-                            hidden.add(current_model())
-                            selected, stage, detailed = None, None, False
-                            metric_reader.clear()
-                            notice = "Tab hidden; its processes continue. Press u to restore hidden tabs."
-                        elif key in "uU":
-                            hidden.clear()
-                            notice = None
-                        elif key in "tT":
-                            notice = None
-                            current = current_model()
-                            picker = SessionBrowser(navigator, snapshot["tasks"], preferred=current)
-                        elif key in "aA":
-                            selected, stage = None, None
-                        elif key in "nNpP" and visible_snapshot()["models"]:
-                            tags_in_order = [model["tag"] for model in visible_snapshot()["models"]]
-                            current = current_model()
-                            direction = 1 if key in "nN" else -1
-                            selected = tags_in_order[
-                                (tags_in_order.index(current) + direction) % len(tags_in_order)
-                            ]
-                            stage = None
-                            metric_offset = 0
-                            metric_reader.clear()
-                        elif key in "[]":
-                            stages = tuple(dict.fromkeys(t["name"] for t in snapshot["tasks"]
-                                                         if t["model"] == current_model())) or adapter.presentation.stages
-                            task = selected_task(snapshot, current_model(), stage)
-                            current_stage = task["name"] if task else stages[0]
-                            direction = 1 if key == "]" else -1
-                            stage = stages[(stages.index(current_stage) + direction) % len(stages)]
-                            metric_offset = 0
-                        elif key in "rR":
-                            updated, notice = -math.inf, None
-                    if time.monotonic() - updated >= args.interval:
-                        snapshot = fresh_snapshot()
-                        updated = time.monotonic()
+                        navigate = controller.key(key)
+                        if navigate is not None or not controller.running:
+                            break
+                    if controller.picker is not None:
+                        redraw = controller.picker.poll() or redraw
+                    if time.monotonic() - controller.updated >= args.interval:
+                        refresh.request()
+                        controller.updated = time.monotonic()
+                    result = refresh.take()
+                    if result is not None:
+                        data, error = result
+                        if error is not None:
+                            controller.notice = f"Refresh unavailable; showing previous snapshot: {error}"
+                        else:
+                            controller.snapshot = data
                         redraw = True
                     size = console.size
-                    if running and navigate is None and (redraw or size != previous_size):
+                    if controller.running and navigate is None and (redraw or size != previous_size):
+                        c = controller
                         view = (
-                            render_stop_confirmation(pending_stop, stop_confirmation, height=size.height)
-                            if pending_stop is not None
-                            else picker.render(height=size.height)
-                            if picker is not None
-                            else render_detail(snapshot, current_model(), presentation=adapter.presentation,
-                                               stage=stage, height=size.height, width=size.width, notice=notice,
-                                               metric_reader=metric_reader, metric_offset=metric_offset,
-                                               return_home=_return_home)
-                            if detailed and current_model()
+                            render_stop_confirmation(c.pending_stop, c.stop_confirmation, height=size.height)
+                            if c.pending_stop is not None
+                            else c.picker.render(height=size.height)
+                            if c.picker is not None
+                            else render_help("detail" if c.detailed else "dashboard")
+                            if c.help
+                            else render_detail(c.snapshot, c.current_model(), presentation=adapter.presentation,
+                                               stage=c.stage, height=size.height, width=size.width, notice=c.notice,
+                                               metric_reader=c.metric_reader, metric_offset=c.metric_offset,
+                                               return_home=_return_home, preview_reader=c.preview_reader)
+                            if c.detailed and c.current_model()
                             else render_dashboard(
-                                visible_snapshot(),
-                                width=size.width,
-                                height=size.height,
-                                selected=current_model(),
-                                stage=stage,
-                                notice=notice,
+                                c.visible_snapshot(), width=size.width, height=size.height,
+                                selected=c.current_model(), stage=c.stage, notice=c.notice,
                                 presentation=adapter.presentation,
                             )
                         )
                         live.update(view, refresh=True)
                         previous_size = size
-                    if running and navigate is None:
+                    if controller.running and navigate is None:
                         time.sleep(0.15)
-            if running and navigate is not None:
+            if controller.running and navigate is not None:
                 # Live and keyboard contexts restored the screen and termios first.
-                notice = navigator.open(navigate)
-                updated = -math.inf
+                controller.notice = navigator.open(navigate)
+                controller.updated = -math.inf
                 if _entry == "tmux" and _return_home:
-                    running = False
+                    controller.running = False
     except KeyboardInterrupt:
         pass
     console.print("Monitor closed.", style="grey70")

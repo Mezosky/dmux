@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="dmux logo" width="220">
+  <img src="https://raw.githubusercontent.com/Mezosky/dmux/main/logo.png" alt="dmux logo" width="220">
 </p>
 
 # dmux
@@ -16,7 +16,7 @@ optional tmux workspaces for experiments and AI CLI chats.
 The core is framework- and benchmark-independent. Experiments, stages, record
 identities, and output locations come from your plan, not a bundled model roster.
 
-![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](screenshots/experiment-overview.png)
+![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-overview.png)
 
 Compare vision/text, language, tabular, and audio experiments in one overview.
 Use `n` / `p` to select a tab, then Enter to inspect it. The audio example has
@@ -29,7 +29,10 @@ saved-count percentage.
 python -m pip install .
 ```
 
-Runtime dependencies are `rich` and `psutil`. `tmux` and `nvidia-smi` are
+Supported platforms are Linux and macOS with Python 3.11 or newer. Windows is
+unsupported: terminal handling and catalog locks require `termios` and `fcntl`.
+
+Runtime dependencies are `rich`, `psutil`, and `jsonschema`. `tmux` and `nvidia-smi` are
 optional external tools; no model weights or inference frameworks are imported.
 
 ## Try it in one command
@@ -60,7 +63,7 @@ and Enter to open an experiment. Its details include optional small result plots
 Esc returns home; `t` opens that project's tmux browser. Tab selects a recently
 opened experiment; `x` closes its recent tab without stopping jobs.
 
-![dmux global home showing four experiments in one registered project, recent experiment tabs, three interrupted runs, and one completed audio run](screenshots/global-home.png)
+![dmux global home showing four experiments in one registered project, recent experiment tabs, three interrupted runs, and one completed audio run](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/global-home.png)
 
 The `OPEN` strip contains recently opened experiments. This capture shows three
 interrupted runs and one completed audio run; PID dashes mean no matching live
@@ -71,7 +74,7 @@ epochs, predictions, and checkpoints. Missing projects remain visible as
 unavailable. Nothing is discovered by scanning your whole computer.
 
 `dmux remove vision` only unregisters the project; jobs, sessions, plans, and
-results stay intact. See [global registration and navigation](docs/GLOBAL_HOME.md).
+results stay intact. See [global registration and navigation](https://github.com/Mezosky/dmux/blob/main/docs/GLOBAL_HOME.md).
 
 Existing scoped commands keep working: `dmux watch`, `dmux --plan-dir PATH`,
 and `dmux json` still use a project plan. For a global snapshot use
@@ -117,7 +120,7 @@ dmux json --project-root /tmp/dmux-demo --plan-dir monitor
 
 ### Reading a live run
 
-![Live bigram language-model training at 193 of 1800 epochs, showing process PID, stage progress, resource telemetry, and a linked tmux session](screenshots/live-progress.png)
+![Live bigram language-model training at 193 of 1800 epochs, showing process PID, stage progress, resource telemetry, and a linked tmux session](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/live-progress.png)
 
 - The top counter summarizes the whole plan. Here, `193 / 1,800` epochs are
   saved and `0/1` stages are complete.
@@ -155,10 +158,10 @@ For unattended setup use `--yes`, or `--dry-run` to preview JSON without writing
 `dmux doctor` checks the resolved paths, counters, record integrity, configured
 logs, and process matching. Missing future outputs are warnings, not invented
 progress. Unknown totals show saved counts without percentages. See the
-[setup and troubleshooting guide](docs/ONBOARDING.md) and
-[small starter plan](examples/plan.json).
+[setup and troubleshooting guide](https://github.com/Mezosky/dmux/blob/main/docs/ONBOARDING.md) and
+[small starter plan](https://github.com/Mezosky/dmux/blob/main/examples/plan.json).
 
-The declarative [`plan.json` schema](docs/PLAN_SCHEMA.md) supports:
+The declarative [`plan.json` schema](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md) supports:
 
 - append-only JSONL with configurable identity, semantic duplicate detection,
   status sets, allowed values, and grouped progress;
@@ -171,7 +174,7 @@ All relative task paths resolve against an explicit `--project-root` or the
 `project_root` declared by the plan—not dmux's installation directory.
 The generic `filesystem` adapter is the default for both the CLI and Python API.
 It is the only bundled adapter; optional external adapters can interpret custom
-formats. See the [plan configuration guide](docs/PLAN_SCHEMA.md) to connect an existing project.
+formats. See the [plan configuration guide](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md) to connect an existing project.
 
 ## Point a project at its outputs
 
@@ -184,9 +187,9 @@ dmux watch --project-root /work/vision --plan-dir monitor --results-dir /data/vi
 Task directories in `monitor/plan.json` resolve beneath the chosen result
 directory. Absolute task paths remain absolute. A plan can also declare separate
 `root` and `results_dir` settings for each named project; see
-[the project configuration](docs/PLAN_SCHEMA.md#multiple-projects).
+[the project configuration](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md#multiple-projects).
 
-![Live experiment details at 470 of 1800 epochs, with the worker PID, model and dataset metadata, and previews of progress.json and train.log](screenshots/experiment-details-live.png)
+![Live experiment details at 470 of 1800 epochs, with the worker PID, model and dataset metadata, and previews of progress.json and train.log](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-details-live.png)
 
 Enter opens this detail view. Use `[` / `]` to choose a stage and Esc to return
 to the overview. The running stage shows its PID, elapsed runtime, and process
@@ -236,12 +239,12 @@ Metric sources are read only inside experiment details—not by the global home
 or project overview. JSON summaries show a value without inventing history;
 JSON arrays, JSONL, and CSV can supply historical samples. Plots use bounded,
 cached windows and never change completion counts. See the
-[result configuration guide](docs/RESULTS.md) for formats, limits, and examples.
+[result configuration guide](https://github.com/Mezosky/dmux/blob/main/docs/RESULTS.md) for formats, limits, and examples.
 
 <details>
 <summary>What if output previews are not configured?</summary>
 
-![Completed experiment details showing the results directory, exact saved counts, and an unconfigured Outputs panel](screenshots/experiment-details-unconfigured.png)
+![Completed experiment details showing the results directory, exact saved counts, and an unconfigured Outputs panel](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-details-unconfigured.png)
 
 Monitoring progress does not require output previews. This completed experiment
 still shows its results directory and `8 / 8` saved records; the Outputs panel
@@ -257,7 +260,7 @@ Press `t` from the dashboard or run `dmux sessions` directly. Use `/` to search,
 Tab to switch between sessions and windows, and Enter to open the selection.
 Project and result directories appear for workspaces created by dmux.
 
-![tmux session browser linking the dmux-live session and its chat and experiment windows to tiny_llm, with separate project and results paths](screenshots/tmux-session-browser.png)
+![tmux session browser linking the dmux-live session and its chat and experiment windows to tiny_llm, with separate project and results paths](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/tmux-session-browser.png)
 
 The selected `dmux-live` session contains independent `chat` and `experiment`
 windows and is linked to `tiny_llm`. Use the arrow keys or `j` / `k` to select a
@@ -325,7 +328,7 @@ my_lab = "my_lab.dmux_adapter:MyLabAdapter"
 
 The separation is deliberate: connectors read bytes, adapters interpret them,
 the monitor aggregates snapshots, and the UI renders those snapshots.
-See [AGENTS.md](AGENTS.md) before changing integrity or navigation behavior.
+See [AGENTS.md](https://github.com/Mezosky/dmux/blob/main/AGENTS.md) before changing integrity or navigation behavior.
 
 ## Development
 
@@ -340,3 +343,56 @@ artifacts, explicit project-root resolution, responsive visuals, terminal
 restoration, and tmux integration on private temporary sockets.
 Compatibility validation uses these demos only; it does not claim certification
 against arbitrary ML frameworks or external research projects.
+
+
+## Options and keyboard reference
+
+`dmux --help` lists commands; `dmux COMMAND --help` lists each command's options.
+Scoped monitoring supports `--interval SECONDS` (default 2, minimum 0.25),
+`--color auto|always|never`, and `--tmux-client /dev/pts/N` to select a client
+explicitly when several clients share a tmux session. `--no-gpu` disables GPU
+queries. `dmux adapters` lists built-in and installed entry-point adapters.
+`dmux demo --tmux --session-prefix NAME` selects names for the four fresh demo
+sessions. `dmux sessions --json` prints the session browser's observations.
+
+Press `?` in the dashboard, detail, home, or session browser for keyboard help.
+On the dashboard, `a` resumes following the active experiment/stage and `r`
+requests a refresh. Arrow keys navigate; the literal `k`/`K` keys open stop review.
+When every experiment tab is hidden, `u` restores them. The
+[keyboard reference](https://github.com/Mezosky/dmux/blob/main/docs/KEYS.md) is generated
+from the same binding table as in-app help. Termination signals restore the
+terminal; Ctrl-Z suspends dmux after restoration, and `fg` resumes the display.
+
+Telemetry refreshes run in a background worker, retaining the last snapshot
+while a query is pending. tmux browser refreshes also run in the background;
+explicit navigation and confirmed removal revalidate the selected target.
+Detail previews cache unchanged file tails and rediscover output patterns every
+two seconds. Closing a detail discards its preview and metric caches.
+
+See the [versioned snapshot contract](https://github.com/Mezosky/dmux/blob/main/docs/SNAPSHOTS.md)
+for machine-readable output and the 0.2 alias migration plan.
+
+## Development checks
+
+```bash
+python -m pip install -e '.[dev]'
+pytest -q
+ruff check .
+mypy
+python -m build
+```
+
+CI runs these checks on Python 3.11–3.13, on Ubuntu and macOS. Linux-only PTY
+integration tests use owned subprocesses and a private temporary tmux socket.
+The package includes `py.typed`; public annotated contracts are checked with
+mypy, while existing unannotated implementation bodies remain gradually typed.
+Screenshots and tests stay in the repository and are excluded from distributions.
+
+## Remote experiments
+
+Install dmux on the machine running the experiments, connect with SSH, and run
+`dmux add /absolute/project/path` followed by `dmux` there. Its registry, process
+IDs, GPU queries, and tmux socket all belong to that host. Reconnect with SSH and
+reopen dmux to continue monitoring; closing the dashboard leaves experiments
+running. A local view of a mounted remote filesystem can show files, but it does
+not establish remote process liveness or provide remote stop controls.

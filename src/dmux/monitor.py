@@ -13,6 +13,7 @@ from .adapters.filesystem import FilesystemAdapter
 from .connectors import JsonCache, tail_log
 from .projects import experiment_roster, project_paths, run_tag
 from .system import gpu_info, running_processes
+from .status import scheduler_records
 
 
 class Monitor:
@@ -42,7 +43,7 @@ class Monitor:
         self.trackers: dict = {}
         self.process_source = processes or (lambda: running_processes(self.adapter))
         self.gpu_source = gpu
-        self.gpu_cache = {"devices": [], "error": None}
+        self.gpu_cache: dict = {"devices": [], "error": None}
         self.gpu_time = -math.inf
 
     def _plan_root(self, plan: Mapping) -> Path:
@@ -52,13 +53,6 @@ class Monitor:
         if declared:
             return resolve_path(declared, self.queue)
         return self.project_root
-
-    @staticmethod
-    def _record_key(row: Mapping) -> tuple[str, str]:
-        return (
-            run_tag(row),
-            row.get("name", row.get("stage", "run")),
-        )
 
     @staticmethod
     def _normalized_task(task: Mapping) -> dict:
@@ -72,6 +66,7 @@ class Monitor:
         plan = self.json.read(self.queue / "plan.json")
         if not isinstance(plan, dict) or not isinstance(plan.get("tasks"), list):
             return {
+                "schema_version": 1,
                 "state": "waiting",
                 "queue": str(self.queue),
                 "plan_dir": str(self.queue),
@@ -92,6 +87,7 @@ class Monitor:
             locations = project_paths(plan, project_root, self.results_dir)
         except ValueError as exc:
             return {
+                "schema_version": 1,
                 "state": "invalid",
                 "queue": str(self.queue),
                 "plan_dir": str(self.queue),
@@ -105,21 +101,10 @@ class Monitor:
                 "tasks": [],
                 "warnings": [str(exc), *self.json.warnings.values()],
             }
-        status = self.json.read(self.queue / "status.json", {}) or {}
-        completed = self.json.read(self.queue / "completion.json")
-        advisory = status.get("active") or {}
-        advisory_key = self._record_key(advisory) if advisory else (None, None)
-        exit_codes = {
-            self._record_key(row): row["returncode"]
-            for row in status.get("completed_tasks", [])
-        }
-        if isinstance(completed, list):
-            exit_codes.update(
-                {
-                    self._record_key(row): row["returncode"]
-                    for row in completed
-                }
-            )
+        advisory_key, exit_codes, status_warnings = scheduler_records(
+            self.json.read(self.queue / "status.json", {}),
+            self.json.read(self.queue / "completion.json", []),
+        )
 
         processes = self.process_source()
         queue_jobs = [
@@ -128,13 +113,13 @@ class Monitor:
             if process["script"] == self.adapter.queue_script
             and process["out"] == str(self.queue)
         ]
-        by_destination = {}
+        by_destination: dict[str | None, list[dict]] = {}
         for process in processes:
             if process["script"] != self.adapter.queue_script:
                 by_destination.setdefault(process["out"], []).append(process)
 
         tasks: list[dict] = []
-        warnings: list[str] = []
+        warnings: list[str] = status_warnings
         if not self.explicit_project_root and not plan.get("project_root") and any(
             not task.get("project") and not self.results_dir and not plan.get("results_dir")
             and task.get("directory") and not Path(task["directory"]).is_absolute()
@@ -272,6 +257,7 @@ class Monitor:
             if session:
                 links.setdefault(run_tag(raw_task), session)
         return {
+            "schema_version": 1,
             "state": state,
             "adapter": self.adapter.presentation.name,
             "presentation": asdict(self.adapter.presentation),

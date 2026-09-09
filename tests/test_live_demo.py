@@ -39,6 +39,7 @@ def test_live_opens_dashboard_when_interactive(tmp_path, monkeypatch):
     assert calls and calls[0][0] == "watch" and str(tmp_path) in calls[0]
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux PTY integration")
 def test_live_quit_restores_terminal_and_leaves_demo_workers_running(tmp_path):
     root = tmp_path / "live tour with spaces"
     master, slave = pty.openpty()

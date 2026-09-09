@@ -1,8 +1,11 @@
-include logo.png
-include AGENTS.md
-exclude MIGRATION.md
+include README.md
+include LICENSE
 recursive-include docs *.md
-recursive-include examples *.py
-recursive-include examples *.json
-recursive-include tests *.py
-recursive-include screenshots *.png
+recursive-include examples *.py *.json
+recursive-include src/dmux/schemas *.json
+include src/dmux/py.typed
+prune tests
+prune screenshots
+exclude logo.png
+exclude AGENTS.md
+exclude MIGRATION.md

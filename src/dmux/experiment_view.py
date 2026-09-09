@@ -1,32 +1,73 @@
 """Experiment details and bounded previews of explicitly configured outputs."""
 from __future__ import annotations
 
+from collections import OrderedDict
 import json
+import time
 from itertools import islice
 from pathlib import Path
 
 from .connectors import tail_log
-from .ui import COLORS, duration, progress_text, task_label
+from .bindings import legend
+from .ui import COLORS, duration, progress_text, selected_task, task_label
 
 
-def selected_task(snapshot, model, stage=None):
-    tasks = [task for task in snapshot["tasks"] if task["model"] == model]
-    return (next((task for task in tasks if task["name"] == stage), None)
-            or next((task for task in tasks if task["pid"]), None)
-            or next((task for task in tasks if task["state"] != "complete"), None)
-            or next(iter(tasks), None))
+class PreviewReader:
+    """Bounded file tails and short-lived glob discovery for an opened detail."""
+
+    def __init__(self, *, clock=time.monotonic):
+        self.clock = clock
+        self.files = OrderedDict()
+        self.matches = OrderedDict()
+
+    def clear(self):
+        self.files.clear()
+        self.matches.clear()
+
+    def paths(self, base, pattern):
+        key, now = (base, pattern), self.clock()
+        cached = self.matches.get(key)
+        if cached is None or now - cached[0] >= 2:
+            path = Path(pattern)
+            try:
+                matches = [path] if path.is_absolute() else list(islice(base.glob(pattern), 8))
+            except OSError:
+                matches = []
+            self.matches[key] = (now, matches)
+        self.matches.move_to_end(key)
+        while len(self.matches) > 16:
+            self.matches.popitem(last=False)
+        return self.matches[key][1]
+
+    def tail(self, path, **options):
+        if not path:
+            return []
+        path = Path(path)
+        key = (path, tuple(sorted(options.items())))
+        try:
+            info = path.stat()
+        except OSError:
+            self.files.pop(key, None)
+            return []
+        stamp = (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_size)
+        if key not in self.files or self.files[key][0] != stamp:
+            self.files[key] = (stamp, tail_log(path, **options))
+        self.files.move_to_end(key)
+        while len(self.files) > 16:
+            self.files.popitem(last=False)
+        return self.files[key][1]
 
 
-def output_previews(task):
+def output_previews(task, reader=None):
     """Read only configured files, with bounded glob matches and text tails."""
     if not task.get("directory"):
         return []
+    reader = reader or PreviewReader()
     base = Path(task["directory"])
     previews = []
     seen = set()
     for pattern in task.get("outputs", [])[:8]:
-        path = Path(pattern)
-        matches = [path] if path.is_absolute() else islice(base.glob(pattern), 8)
+        matches = reader.paths(base, pattern)
         for match in matches:
             if match in seen:
                 continue
@@ -37,7 +78,7 @@ def output_previews(task):
                 size = match.stat().st_size
             except OSError:
                 continue
-            text = (tail_log(match, n=5, max_bytes=4096, max_line_length=180)
+            text = (reader.tail(match, n=5, max_bytes=4096, max_line_length=180)
                     if match.suffix.lower() in {".json", ".jsonl", ".log", ".txt", ".csv"} else [])
             previews.append((str(match), size, text))
             if len(previews) >= 8:
@@ -46,12 +87,13 @@ def output_previews(task):
 
 
 def render_detail(snapshot, model, *, presentation, stage=None, height=40, width=80, notice=None,
-                  metric_reader=None, metric_offset=0, return_home=False):
+                  metric_reader=None, metric_offset=0, return_home=False, preview_reader=None):
     from rich.console import Group
     from rich.panel import Panel
     from rich.table import Table
     from rich.text import Text
 
+    preview_reader = preview_reader or PreviewReader()
     task = selected_task(snapshot, model, stage)
     title = Text(f"DMUX / {presentation.entity_name(model)}", style="bold bright_cyan")
     if task is None:
@@ -95,7 +137,7 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         lines = [f"{key}: {json.dumps(value, ensure_ascii=False)}" for key, value in list(metadata.items())[:2 if has_metrics else 5]]
         parts.append(Panel(Text("\n".join(lines), overflow="ellipsis"), title="Metadata", border_style="grey35"))
     if height >= (45 if has_metrics else 28):
-        previews = output_previews(task)
+        previews = output_previews(task, preview_reader)
         lines = []
         for name, size, preview in previews[:2 if height < 45 else 4]:
             lines.append(f"{name} ({size:,} bytes)")
@@ -105,14 +147,16 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
                      else "No output previews configured; add outputs to this task in plan.json."]
         parts.append(Panel(Text("\n".join(lines), overflow="ellipsis"), title="Outputs", border_style="grey35"))
     if height >= (55 if has_metrics else 40):
-        recent = tail_log(task["log"], n=3)
+        recent = preview_reader.tail(task["log"], n=3)
         if recent:
             parts.append(Panel(Text("\n".join(recent)), title="Recent log", border_style="grey35"))
     if notice:
         parts.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
     parts.append(Text("[ ] stage · t tmux · k stop stage · K stop experiment", style="grey70"))
     parts.append(Text(("Esc/q home" if return_home else "Esc/q back") +
-                      " · m next results · x hide tab (u restores tabs)", style="grey70"))
+                      " · m next results · x hide tab (u restores tabs) · ? help", style="grey70"))
+    if height >= 60:
+        parts.append(Text(legend("detail"), style="grey70"))
     return Panel(Group(*parts), border_style="grey35")
 
 

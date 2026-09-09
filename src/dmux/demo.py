@@ -19,6 +19,13 @@ import tempfile
 import time
 
 
+def create_plan(path: Path, value) -> None:
+    """Exclusively create a demo plan; refuse existing files and symlinks."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
+
+
 def write_json(path: Path, value) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -136,7 +143,7 @@ def run_tiny_clip(root: Path, steps: int, delay: float) -> None:
     for index in range(steps):
         target = names[index % len(names)]
         scores = {name: cosine(colors[target], embedding) for name, embedding in colors.items()}
-        prediction = max(scores, key=scores.get)
+        prediction = max(scores, key=scores.__getitem__)
         correct += prediction == target
         row = {
             "step": index + 1,
@@ -253,7 +260,7 @@ def worker_command(name: str, results: Path, steps: int, delay: float) -> list[s
 
 def launch_workers(root: Path, results: Path, steps: int, delay: float) -> list[subprocess.Popen]:
     """Launch only explicitly requested demo jobs; dashboard exit never stops them."""
-    workers = []
+    workers: list[subprocess.Popen] = []
     for name in EXPERIMENTS:
         output = results / name
         output.mkdir(parents=True, exist_ok=True)
@@ -331,23 +338,23 @@ def main(argv=None) -> None:
             for name in EXPERIMENTS:
                 sid = manager.create(links[name], project_root=root, results_dir=results / name)
                 created.append((name, sid))
-            write_json(queue / "plan.json", definition)
+            create_plan(queue / "plan.json", definition)
             for name, sid in created:
                 manager.add_window(sid, name="experiment", project_root=root,
                     results_dir=results / name,
                     command=[*worker_command(name, results, args.steps, args.delay), "--keep-window"])
-        except SessionError as exc:
+        except (SessionError, OSError) as exc:
             # Do not kill partially created workspaces; report their exact IDs.
             parser.exit(2, f"{exc}\nCreated sessions: {', '.join(sid for _, sid in created) or 'none'}\n")
     elif args.live:
-        write_json(queue / "plan.json", definition)
+        create_plan(queue / "plan.json", definition)
         try:
             workers = launch_workers(root, results, args.steps, args.delay)
         except OSError as exc:
             parser.exit(2, f"{exc}\nPlan retained at {queue / 'plan.json'}.\n")
         print("Demo worker PIDs: " + ", ".join(str(worker.pid) for worker in workers))
     else:
-        write_json(queue / "plan.json", definition)
+        create_plan(queue / "plan.json", definition)
         for task in definition["tasks"]:
             update_status(queue, task["experiment"], task["stage"])
             run_experiment(task["experiment"], results, args.steps, args.delay)

@@ -8,7 +8,6 @@ import io
 import json
 import math
 import os
-from pathlib import Path
 import stat
 
 from .adapters.base import resolve_path

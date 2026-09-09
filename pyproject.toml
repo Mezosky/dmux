@@ -4,19 +4,44 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dmux"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Terminal workspaces and monitoring for machine-learning experiments"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [{name = "Ignacio"}]
+keywords = ["terminal", "experiments", "monitoring", "machine-learning", "tmux"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
+]
 dependencies = [
   "psutil>=5.9",
   "rich>=13.7",
+  "jsonschema>=4.18",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.11", "mypy>=1.15", "types-psutil", "types-jsonschema", "build>=1.2"]
+
+[project.urls]
+Homepage = "https://github.com/Mezosky/dmux"
+Documentation = "https://github.com/Mezosky/dmux/tree/main/docs"
+Repository = "https://github.com/Mezosky/dmux"
+Issues = "https://github.com/Mezosky/dmux/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "dmux._version.__version__"}
+
+[tool.setuptools.package-data]
+dmux = ["py.typed", "schemas/*.json"]
 
 [project.scripts]
 dmux = "dmux.cli:main"
@@ -27,3 +52,22 @@ where = ["src"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["E402", "E731"]
+"tests/test_session_workspaces.py" = ["F401", "F811"]  # Shared pytest fixture import.
+"examples/run_model_zoo.py" = ["E402"]  # Repository wrapper sets src path first.
+
+[tool.mypy]
+python_version = "3.11"
+files = ["src/dmux"]
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = true

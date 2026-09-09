@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from collections import Counter
 import json
-from pathlib import Path
 import time
 
 from .adapters.filesystem import FilesystemAdapter
@@ -11,6 +10,7 @@ from .catalog import ProjectCatalog, CatalogError, atomic_json, user_directory
 from .monitor import Monitor
 from .connectors import open_regular
 from .system import HostSampler
+from .bindings import action_key, render_help
 
 
 def run_state(tasks):
@@ -169,7 +169,7 @@ class Home:
         if self.notice:
             parts.append(Text(self.notice, style="yellow", overflow="ellipsis", no_wrap=True))
         parts.append(Text(f'{len(rows)} matching entries · stage states only; no cross-project percentage', style="grey62"))
-        parts.append(Text("j/k select · / search · f filter · Enter inspect · t tmux · q quit", style="grey70"))
+        parts.append(Text("j/k select · / search · f filter · Enter inspect · t tmux · q quit · ? help", style="grey70"))
         parts.append(Text("Tab recent experiment · x close recent tab (jobs continue)", style="grey70"))
         parts.append(Text("Registration never starts/stops jobs. Result plots load only inside an experiment.", style="grey62"))
         return Panel(Group(*parts), border_style="grey35")
@@ -186,7 +186,8 @@ def main(argv=None):
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--no-gpu", action="store_true")
     args = parser.parse_args(argv)
-    console, home = Console(highlight=False), Home()
+    console = Console(highlight=False)
+    home = Home(sampler=HostSampler(background=console.is_terminal and not (args.once or args.json)))
     if args.no_gpu:
         home.sampler.gpu = lambda: {"devices": [], "error": "disabled"}
     state_path = user_directory("state") / "home.json"
@@ -211,7 +212,7 @@ def main(argv=None):
         if home.catalog_error:
             raise SystemExit(2)
         return
-    running, searching = True, False
+    running, searching, helping = True, False, False
     try:
         while running:
             action = None
@@ -220,9 +221,14 @@ def main(argv=None):
                 while running and action is None:
                     redraw = False
                     for key in read_keys():
+                        if not searching and not helping and key != "t":
+                            key = action_key(key, "home")
                         redraw = True
                         if key == "\x03":
                             running = False
+                        elif helping:
+                            if key in ("?", "q", "Q", "\x1b"):
+                                helping = False
                         elif searching:
                             if key in "\r\n\x1b":
                                 searching = False
@@ -230,6 +236,8 @@ def main(argv=None):
                                 home.query = home.query[:-1]
                             elif key.isprintable() and len(home.query) < 100:
                                 home.query += key
+                        elif key == "?":
+                            helping = True
                         elif key in "qQ":
                             running = False
                         elif key in "jk":
@@ -266,7 +274,7 @@ def main(argv=None):
                         home.refresh()
                         updated, redraw = now, True
                     if redraw or console.size != previous:
-                        live.update(home.render(height=console.height, searching=searching), refresh=True)
+                        live.update(render_help("home") if helping else home.render(height=console.height, searching=searching), refresh=True)
                         previous = console.size
                     if running and action is None:
                         time.sleep(.1)
@@ -286,6 +294,10 @@ def main(argv=None):
                 try:
                     watch(flags, _entry="tmux" if kind == "tmux" else "detail", _return_home=True)
                 except (OSError, ValueError, SystemExit) as exc:
+                    from .terminal import TerminalSignal
+
+                    if isinstance(exc, TerminalSignal):
+                        raise
                     home.notice = f"Could not open project: {exc}"
                 home.due[entry["id"]] = -float("inf")
     except KeyboardInterrupt:
