@@ -285,6 +285,10 @@ references, one short label per stage, relative file globs, and finite numbers.
 Unknown extension properties are allowed for compatibility; they do not configure
 new behavior in the generic adapter.
 
+`dmux doctor --adapter NAME` also runs the selected adapter's semantic validation.
+The [local MLflow adapter](TRACKERS.md) uses a task-level `mlflow` extension;
+the generic editor schema permits that extension without interpreting it.
+
 `short_labels` is an optional array with one non-empty overview heading for each
 distinct stage, in first-appearance order. For stages `train` then `evaluate`,
 use `"short_labels": ["Train", "Eval"]`. Task `detail` is an optional text string

@@ -14,7 +14,7 @@ from ._version import __version__
 from .experiment_view import render_detail, render_stop_confirmation
 from .controller import DashboardController
 from .bindings import render_help
-from .registry import adapter_names, load_adapter
+from .registry import adapter_names, adapter_statuses, load_adapter
 from .system import HostSampler
 from .refresh import BackgroundRefresh
 from .terminal import keyboard
@@ -126,7 +126,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
     if extra:
         argument_parser.error("unrecognized arguments: " + " ".join(extra))
     if args.command == "adapters":
-        print("\n".join(adapter_names()))
+        print("\n".join(f"{name}\t{status}" for name, status in adapter_statuses()))
         return
     args.once = args.once or args.command == "snapshot"
     args.json = args.json or args.command == "json"

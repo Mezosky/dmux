@@ -1,0 +1,16 @@
+{
+  "name": "Local W&B files",
+  "project_root": "/work/project",
+  "tasks": [
+    {
+      "experiment": "RUN_ID",
+      "stage": "train",
+      "directory": "wandb/offline-run-TIMESTAMP-RUN_ID/files",
+      "log": "output.log",
+      "outputs": ["wandb-summary.json", "wandb-metadata.json", "config.yaml"],
+      "metrics": [
+        {"label": "Loss", "type": "json", "path": "wandb-summary.json", "field": "loss"}
+      ]
+    }
+  ]
+}

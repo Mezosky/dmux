@@ -20,7 +20,31 @@ def load_adapter(name: str):
     if name in BUILTINS:
         return BUILTINS[name]()
     matches = [entry for entry in entry_points(group="dmux.adapters") if entry.name == name]
-    if len(matches) != 1:
+    if len(matches) > 1:
+        raise ValueError(f"Multiple entry points register adapter {name!r}; remove the conflicting installation")
+    if not matches:
         available = ", ".join(adapter_names())
         raise ValueError(f"Unknown adapter {name!r}. Available adapters: {available}")
-    return matches[0].load()()
+    entry = matches[0]
+    try:
+        return entry.load()()
+    except ImportError as exc:
+        distribution = getattr(entry, "dist", None)
+        package = distribution.metadata.get("Name") if distribution else None
+        extras = entry.extras
+        requirement = f"{package}[{','.join(extras)}]" if package and extras else package
+        hint = f' Install "{requirement}" with its adapter dependencies.' if requirement else " Install its optional dependencies."
+        raise ValueError(f"Adapter {name!r} unavailable: {exc}.{hint}") from exc
+
+
+def adapter_statuses() -> list[tuple[str, str]]:
+    """Probe only on explicit listing; normal discovery never imports plugins."""
+    statuses = []
+    for name in adapter_names():
+        try:
+            load_adapter(name)
+        except Exception as exc:
+            statuses.append((name, f"unavailable: {exc}"))
+        else:
+            statuses.append((name, "usable"))
+    return statuses

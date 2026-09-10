@@ -1,0 +1,27 @@
+{
+  "name": "Local MLflow runs",
+  "project_root": "/work/project",
+  "tasks": [
+    {
+      "experiment": "RUN_ID",
+      "stage": "train",
+      "directory": "mlruns/0/RUN_ID",
+      "mlflow": {
+        "params": ["batch_size"],
+        "tags": ["mlflow.runName"]
+      },
+      "outputs": ["meta.yaml", "params/batch_size", "tags/mlflow.runName"],
+      "metrics": [
+        {
+          "label": "Loss",
+          "type": "whitespace",
+          "path": "metrics/loss",
+          "columns": ["timestamp", "value", "step"],
+          "field": "value",
+          "x_field": "step",
+          "goal": "min"
+        }
+      ]
+    }
+  ]
+}

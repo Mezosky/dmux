@@ -30,8 +30,16 @@ def validate_metrics(metrics):
         for name in ("label", "path", "field"):
             if not isinstance(config.get(name), str) or not config[name]:
                 raise ValueError(f"metric.{name} must be a non-empty string")
-        if config.get("type", "jsonl") not in ("json", "jsonl", "csv"):
-            raise ValueError("metric.type must be json, jsonl or csv")
+        if config.get("type", "jsonl") not in ("json", "jsonl", "csv", "whitespace"):
+            raise ValueError("metric.type must be json, jsonl, csv or whitespace")
+        if config.get("type") == "whitespace":
+            columns = config.get("columns")
+            if (not isinstance(columns, list) or not 1 <= len(columns) <= 32
+                    or not all(isinstance(c, str) and c for c in columns)
+                    or len(set(columns)) != len(columns)):
+                raise ValueError("metric.columns must contain 1–32 unique column names")
+            if config["field"] not in columns or config.get("x_field") and config["x_field"] not in columns:
+                raise ValueError("metric.field and x_field must name declared columns")
         for name in ("x_field", "records_field", "unit"):
             if name in config and not isinstance(config[name], str):
                 raise ValueError(f"metric.{name} must be a string")
@@ -57,7 +65,7 @@ def number(value):
 class MetricReader:
     """Cache only opened result sources, with at most 8 files and 256 points each.
 
-    Changed JSONL/CSV sources use a bounded tail; whole JSON is capped at 256 KiB.
+    Changed line-oriented sources use a bounded tail; whole JSON is capped at 256 KiB.
     No monitor snapshot or home-screen refresh instantiates or calls this reader.
     """
     max_bytes = 256 * 1024
@@ -69,8 +77,8 @@ class MetricReader:
     def clear(self):
         self.cache.clear()
 
-    def _source(self, path, kind, records_field):
-        key = (path, kind, records_field)
+    def _source(self, path, kind, records_field, columns=()):
+        key = (path, kind, records_field, tuple(columns))
         try:
             descriptor = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
             with os.fdopen(descriptor, "rb") as handle:
@@ -124,6 +132,17 @@ class MetricReader:
                                 malformed += 1
                             else:
                                 records.append(row)
+                    elif kind == "whitespace":
+                        for line in lines:
+                            if not line.strip():
+                                continue
+                            try:
+                                values = line.decode("utf-8").split()
+                                if len(values) != len(columns):
+                                    raise ValueError("column count mismatch")
+                                records.append(dict(zip(columns, values)))
+                            except (ValueError, UnicodeError):
+                                malformed += 1
                     else:
                         for line in lines:
                             if not line.strip():
@@ -150,12 +169,13 @@ class MetricReader:
 
     def read(self, directory, config):
         source = resolve_path(config["path"], directory)
-        data = self._source(source, config.get("type", "jsonl"), config.get("records_field", ""))
+        data = self._source(source, config.get("type", "jsonl"), config.get("records_field", ""),
+                            config.get("columns", ()) if config.get("type") == "whitespace" else ())
         points, ignored, seen = [], 0, set()
         x_field = config.get("x_field")
         scale = config.get("scale", 1)
         for row in data["records"]:
-            lookup = row.get if config.get("type") == "csv" else lambda key: field(row, key)
+            lookup = row.get if config.get("type") in {"csv", "whitespace"} else lambda key: field(row, key)
             y = number(lookup(config["field"]))
             x = number(lookup(x_field)) if x_field else len(points)
             if y is None or x is None or not math.isfinite(y * scale):

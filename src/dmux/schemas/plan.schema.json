@@ -522,7 +522,8 @@
           "enum": [
             "json",
             "jsonl",
-            "csv"
+            "csv",
+            "whitespace"
           ]
         },
         "goal": {
@@ -540,12 +541,41 @@
         "scale": {
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
         }
       },
       "required": [
         "label",
         "path",
         "field"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "whitespace"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "columns"
+            ]
+          }
+        }
       ]
     }
   }

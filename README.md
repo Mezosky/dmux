@@ -181,8 +181,9 @@ The declarative [`plan.json` schema](https://github.com/Mezosky/dmux/blob/main/d
 All relative task paths resolve against an explicit `--project-root` or the
 `project_root` declared by the plan—not dmux's installation directory.
 The generic `filesystem` adapter is the default for both the CLI and Python API.
-It is the only bundled adapter; optional external adapters can interpret custom
-formats. See the [plan configuration guide](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md) to connect an existing project.
+It is the only built-in adapter. The separately packaged `dmux_mlflow` integration
+ships in the same wheel and loads through entry points; other optional adapters
+can interpret custom formats. See the [plan configuration guide](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md) to connect an existing project.
 
 ## Point a project at its outputs
 
@@ -254,6 +255,21 @@ or project overview. JSON summaries show a value without inventing history;
 JSON arrays, JSONL, and CSV can supply historical samples. Plots use bounded,
 cached windows and never change completion counts. See the
 [result configuration guide](https://github.com/Mezosky/dmux/blob/main/docs/RESULTS.md) for formats, limits, and examples.
+
+### Existing MLflow and W&B runs
+
+The optional `mlflow` adapter reads explicitly selected local file-store runs
+without importing an SDK. It interprets reported status and selected params/tags;
+result plots remain lazy and process liveness still requires a real PID match.
+
+```bash
+dmux adapters
+dmux watch --adapter mlflow --project-root /work/project --plan-dir monitor
+```
+
+W&B local JSON summaries and logs can use the filesystem adapter when those
+files are present. See [tracker setup, example plans, and supported limits](https://github.com/Mezosky/dmux/blob/main/docs/TRACKERS.md).
+W&B binary history and tracking-server access are not implemented yet.
 
 <details>
 <summary>What if output previews are not configured?</summary>
@@ -365,7 +381,8 @@ against arbitrary ML frameworks or external research projects.
 Scoped monitoring supports `--interval SECONDS` (default 2, minimum 0.25),
 `--color auto|always|never`, and `--tmux-client /dev/pts/N` to select a client
 explicitly when several clients share a tmux session. `--no-gpu` disables GPU
-queries. `dmux adapters` lists built-in and installed entry-point adapters.
+queries. `dmux adapters` lists built-in and installed entry-point adapters with
+their load availability.
 `dmux demo --tmux --session-prefix NAME` selects names for the four fresh demo
 sessions. `dmux sessions --json` prints the session browser's observations.
 

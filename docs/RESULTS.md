@@ -83,7 +83,7 @@ history contract.
 ## Field options
 
 - Required: `label`, `path`, `field`.
-- `type`: `jsonl`, `json`, or `csv`.
+- `type`: `jsonl`, `json`, `csv`, or `whitespace` (with explicit `columns`).
 - `x_field`: optional numeric step/epoch identity. Duplicate or decreasing
   coordinates are excluded and flagged. Without it, points use file order and
   no step-level deduplication is claimed. Use separate series/files for splits
@@ -113,7 +113,8 @@ dependency is needed.
 The reader retains at most 256 records per source and caches at most eight
 sources while browsing details. JSON is capped at 256 KiB; larger documents are
 reported as too large instead of partially parsed. JSONL/CSV use at most a
-256 KiB tail and only newline-committed records. CSV headers are capped at
+256 KiB tail and only newline-committed records. The same bounds apply to
+headerless whitespace tables. CSV headers are capped at
 16 KiB. Parsed data is reused across metrics for an unchanged source.
 
 On file changes, the bounded window is reread; rotation/replacement/truncation
@@ -131,3 +132,21 @@ when the experiment is opened.
 The demos exercise JSONL loss/perplexity and accuracy histories, CSV MSE, and
 a latest-only JSON audio accuracy result. Their calculations are deterministic
 and small; no pretrained models or external projects are needed for validation.
+
+## Headerless whitespace tables
+
+For numeric text histories, set `type: "whitespace"` and declare 1–32 unique
+`columns` in file order. `field` and an optional `x_field` must name those columns.
+Column names are literal, as with CSV. Each nonblank committed line must have
+exactly the declared number of whitespace-separated values; mismatches are
+reported and excluded. There is no quoting or multiline-field interpretation.
+
+```json
+{"label": "Value", "type": "whitespace", "path": "measurements.txt",
+ "columns": ["timestamp", "value", "step"], "field": "value", "x_field": "step"}
+```
+
+The reader retains append order. Repeated/backward `x_field` values are excluded
+with a warning; omit `x_field` when repeated coordinates are intentional. No
+result source supplies progress counts. See [local tracker recipes](TRACKERS.md)
+for an MLflow file-store example.

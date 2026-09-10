@@ -6,6 +6,7 @@ identity, completion, and integrity rules on top of these primitives.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from collections import OrderedDict
 from contextlib import contextmanager
 import json
 import os
@@ -63,6 +64,39 @@ class JsonCache:
                 f"{path.name}: temporarily unreadable ({type(exc).__name__})"
             )
             return self.cache.get(path, (None, default))[1]
+
+
+class TextCache:
+    """Bounded UTF-8 documents; errors evict old data instead of implying success."""
+
+    def __init__(self, *, max_bytes=65_536, max_entries=128):
+        self.max_bytes = max_bytes
+        self.max_entries = max_entries
+        self.cache = OrderedDict()
+
+    def read(self, path: str | Path) -> str:
+        path = Path(path)
+        try:
+            with open_regular(path) as handle:
+                info = os.fstat(handle.fileno())
+                stamp = (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_ctime_ns, info.st_size)
+                if path in self.cache and self.cache[path][0] == stamp:
+                    self.cache.move_to_end(path)
+                    return self.cache[path][1]
+                if info.st_size > self.max_bytes:
+                    raise ValueError(f"text document exceeds {self.max_bytes} bytes")
+                raw = handle.read(self.max_bytes + 1)
+                if len(raw) > self.max_bytes:
+                    raise ValueError(f"text document exceeds {self.max_bytes} bytes")
+                value = raw.decode("utf-8")
+            self.cache[path] = (stamp, value)
+            self.cache.move_to_end(path)
+            while len(self.cache) > self.max_entries:
+                self.cache.popitem(last=False)
+            return value
+        except (OSError, ValueError, UnicodeError):
+            self.cache.pop(path, None)
+            raise
 
 
 @dataclass

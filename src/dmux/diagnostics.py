@@ -14,9 +14,10 @@ from .discovery import integer_fields, sample_file
 from .monitor import Monitor
 from .projects import project_paths
 from .plan_schema import validate_plan_schema
+from .registry import load_adapter
 
 
-def diagnose(plan_dir, *, project_root=None, results_dir=None, processes=None) -> dict:
+def diagnose(plan_dir, *, project_root=None, results_dir=None, processes=None, adapter_name="filesystem") -> dict:
     """Observe configuration, outputs and real processes; never run project code.
 
     One bounded snapshot is inspected. A growing JSONL file may need subsequent
@@ -49,7 +50,7 @@ def diagnose(plan_dir, *, project_root=None, results_dir=None, processes=None) -
         return report()
     try:
         validate_plan_schema(plan)
-        adapter = FilesystemAdapter()
+        adapter = load_adapter(adapter_name)
         adapter.configure(plan)
         effective_root = root if project_root else resolve_path(plan.get("project_root", root), directory)
         locations = project_paths(plan, effective_root, results_dir)
@@ -181,10 +182,11 @@ def main(argv=None):
     parser.add_argument("--results-dir", type=Path)
     parser.add_argument("--plan-dir", "--queue", dest="plan_dir", type=Path)
     parser.add_argument("--json", action="store_true", help="Print diagnostic JSON")
+    parser.add_argument("--adapter", default="filesystem", help="Read-only schema adapter (default: filesystem)")
     args = parser.parse_args(argv)
     root = (args.project_root or Path.cwd()).expanduser().resolve()
     report = diagnose(args.plan_dir or FilesystemAdapter().default_queue(root),
-                      project_root=args.project_root, results_dir=args.results_dir)
+                      project_root=args.project_root, results_dir=args.results_dir, adapter_name=args.adapter)
     if args.json:
         print(json.dumps(report, indent=2))
     else:

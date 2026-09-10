@@ -19,6 +19,9 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y tmux
       - run: python -m pip install -e '.[dev]'
+      - name: Install optional MLflow SDK for file-format compatibility test
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.11'
+        run: python -m pip install '.[mlflow]' 'mlflow-skinny==3.3.2'
       - run: pytest -q
       - run: ruff check .
       - run: mypy
