@@ -83,6 +83,7 @@ with keyboard() as keys, Live(console=Console(), screen=True, auto_refresh=False
         until(lambda: process.poll() is not None)
         assert termios.tcgetattr(slave) == previous
         assert b"\x1b[?1049l" in output and b"\x1b[?25h" in output
+        assert b"\x1b[?1006h" in output and b"\x1b[?1006l\x1b[?1000l" in output
         assert process.returncode == (1 if mode == "exception" else 129 if mode == "hup" else 143)
     finally:
         if process.poll() is None:

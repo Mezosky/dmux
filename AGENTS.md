@@ -28,7 +28,8 @@ sequence, or results layout.
 - `src/dmux/sessions.py`: explicit session/window creation and confirmed removal.
 - `src/dmux/session_browser.py`: searchable session/window views and removal dialog.
 - `src/dmux/process_actions.py`: identity-checked, confirmed SIGTERM actions.
-- `src/dmux/terminal.py`: keyboard decoding and guaranteed termios restoration.
+- `src/dmux/terminal.py`: keyboard/mouse decoding and guaranteed terminal restoration.
+- `src/dmux/mouse.py`: rendered-cell hit targets; pointer input never confirms controls.
 - `src/dmux/cli.py`: dependency checks and interactive/non-interactive modes.
 - `src/dmux/discovery.py`: bounded read-only file/field suggestions, not framework detection.
 - `src/dmux/onboarding.py`: explicit setup wizard and exclusive new-plan creation.

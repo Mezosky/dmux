@@ -4,6 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "mouse": {"type": "boolean"},
     "interval": {
       "type": "number",
       "minimum": 0.25,

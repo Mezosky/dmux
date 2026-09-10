@@ -1,6 +1,18 @@
-# Keyboard controls
+# Keyboard and mouse controls
 
 Generated from `dmux.bindings.BINDINGS`.
+
+Press or click `? help` for controls. Click a tab to select it, an experiment row to
+open details, or a stage row to inspect it. Home rows/recent tabs open details;
+session rows open the selected tmux destination. Click a preference to edit/toggle it.
+The wheel navigates lists/tabs and scrolls logs or comparisons. Help entries for
+navigation and options are clickable; stop/removal confirmation remains typed.
+
+Mouse reporting is enabled only in interactive terminals, using
+[SGR mouse reporting](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Extended-coordinates).
+Use `--no-mouse`, `DMUX_MOUSE=false`, or `dmux settings set mouse false` to disable it.
+Keyboard controls remain available; terminal/emulator shortcuts can bypass mouse
+reporting for text selection. dmux does not change your tmux server settings.
 
 ## Dashboard
 
@@ -75,4 +87,42 @@ Generated from `dmux.bindings.BINDINGS`.
 | d | Review session removal; exact name required |
 | q/Esc | Close browser |
 | r | Refresh |
+| ? | Show keyboard help |
+
+## Log
+
+| Keys | Action |
+| --- | --- |
+| j/↓ | Scroll down |
+| k/↑ | Scroll up |
+| Ctrl-D/U | Page down / up |
+| / | Search the retained log window |
+| f | Toggle follow mode |
+| o | Options |
+| q/Esc | Back (options save on close) |
+| r | Refresh |
+| ? | Show keyboard help |
+
+## Comparison
+
+| Keys | Action |
+| --- | --- |
+| j/↓ | Scroll down |
+| k/↑ | Scroll up |
+| s | Cycle comparison sort order |
+| o | Options |
+| q/Esc | Back (options save on close) |
+| r | Refresh |
+| ? | Show keyboard help |
+
+## Options
+
+| Keys | Action |
+| --- | --- |
+| j/↓ | Scroll down |
+| k/↑ | Scroll up |
+| Enter | Edit or toggle selected preference |
+| ← | Previous value |
+| → | Next value |
+| q/Esc | Back (options save on close) |
 | ? | Show keyboard help |

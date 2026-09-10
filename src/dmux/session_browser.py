@@ -11,6 +11,7 @@ from .refresh import BackgroundRefresh
 from .tmux import clean
 from .settings import Settings
 from .options_view import OptionsView
+from .mouse import MouseEvent, MouseMap, target, help_hint
 from .appearance import Appearance
 
 
@@ -95,6 +96,28 @@ class SessionBrowser:
         else:
             self._apply(value)
         return True
+
+    def mouse(self, action):
+        if not action or self.removal is not None or self.searching:
+            return None
+        if self.options is not None:
+            if self.options.mouse(action):
+                self.options = None
+            return None
+        kind, value = action
+        if kind == 'close_help':
+            self.help = False
+        elif kind == 'key' and value not in ('d', 'D'):
+            if self.help and value in ('\x1b[A', '\x1b[B'):
+                return None
+            self.help = False
+            return self.key(value)
+        elif kind == 'pane' and not self.help:
+            index = next((i for i, pane in enumerate(self.rows) if pane['target'] == value), None)
+            if index is not None:
+                self.index = index
+                return self.key('\r')
+        return None
 
     def key(self, key):
         """Return ('open', pane), ('close', None), or None."""
@@ -211,7 +234,7 @@ class SessionBrowser:
             table.add_row(Text(("› " if index == self.index else "  ") + label,
                                style="bold bright_cyan" if index == self.index else "grey74"),
                           Text(", ".join(windows) if self.sessions else pane["command"]),
-                          Text(", ".join(related), style="grey62"))
+                          Text(", ".join(related), style="grey62"), style=target("pane", pane["target"]))
         parts = [heading, Text("Sessions" if self.sessions else "Windows & panes", style="grey74")]
         if self.query or self.searching:
             parts.append(Text("Search: " + self.query + ("▏" if self.searching else ""), style="bright_cyan"))
@@ -228,8 +251,7 @@ class SessionBrowser:
                 parts.append(Text("Results: " + results, style="grey62", no_wrap=True, overflow="ellipsis"))
         if self.notice:
             parts.append(Text(self.notice, style="yellow", overflow="ellipsis", no_wrap=True))
-        parts.append(Text("↑/↓ j/k select · / search · Tab windows/sessions · d remove", style="grey70"))
-        parts.append(Text("r refresh · Esc/q back · ? help", style="grey70"))
+        parts.append(help_hint())
         return Panel(Group(*parts), border_style="grey35", box=box.ROUNDED)
 
 
@@ -249,12 +271,15 @@ def browse(navigator, *, json_output=False):
     try:
         while running:
             selected = None
-            with keyboard() as keys, Live(console=console, screen=True, auto_refresh=False) as live:
+            screen = MouseMap()
+            with keyboard(mouse=lambda: browser.settings.values['mouse']) as keys, Live(console=console, screen=True, auto_refresh=False) as live:
                 previous_size = None
                 while running and selected is None:
                     pressed = keys()
                     for key in pressed:
-                        action = browser.key(key)
+                        action = (browser.mouse(screen.action(key, console.size))
+                                  if isinstance(key, MouseEvent) else browser.key(key))
+                        screen.regions = []
                         if action:
                             if action[0] == "open":
                                 selected = action[1]
@@ -263,7 +288,7 @@ def browse(navigator, *, json_output=False):
                             break
                     refreshed = browser.poll()
                     if pressed or refreshed or console.size != previous_size:
-                        live.update(Appearance(browser.render(height=console.height), browser.settings), refresh=True)
+                        live.update(screen.frame(Appearance(browser.render(height=console.height), browser.settings)), refresh=True)
                         previous_size = console.size
                     if running and selected is None:
                         time.sleep(.1)

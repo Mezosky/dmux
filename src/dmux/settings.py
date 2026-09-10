@@ -17,7 +17,7 @@ DEFAULTS = {
     'start_view': 'home', 'log_tail': 500, 'metric_window': 256,
     'clock': 'local', 'hide_completed_after': 0, 'notify_cmd': [],
     'tmux_socket': '', 'ai_cli': [], 'banner': True,
-    'stall_seconds': 0, 'history': False,
+    'mouse': True, 'stall_seconds': 0, 'history': False,
 }
 
 

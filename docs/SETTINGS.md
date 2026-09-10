@@ -1,7 +1,7 @@
 # Preferences and terminal appearance
 
 Press `o` in home, the dashboard, details, comparison, the log viewer or the
-session browser. Move with `j`/`k` or arrows; Enter toggles a choice or opens a
+session browser. Click a preference, or move with the wheel, `j`/`k`, or arrows. Enter toggles a choice or opens a
 value editor. Text editors accept JSON values. Close with `o` or Esc to save;
 changes apply to the current view immediately, and dmux also saves on exit.
 An active stop/removal confirmation continues to accept its typed label: `o`
@@ -35,6 +35,7 @@ preference is saved. Merely opening dmux or reading settings writes nothing.
 | `gpu_interval` | 5 | GPU cache interval, 1–3600 seconds |
 | `theme` | cyan-dark | Named palette or a six-token JSON object |
 | `box_style` | unicode | `ascii` substitutes terminal box/decorative glyphs |
+| `mouse` | true | Click tabs/rows/help/options and use the wheel; `--no-mouse` disables reporting |
 | `key_style` | both | `letters` or `arrows` changes the help labels; both inputs still work |
 | `start_view` | home | Bare `dmux` opens `home` or a local `watch` |
 | `log_tail` | 500 | Full log viewer window: 20–2000 lines, also capped at 256 KiB |
@@ -66,9 +67,11 @@ dmux settings set theme '{"accent":"#22d3ee","ok":"#4ade80","warning":"#facc15",
 
 State names and warning text remain visible in every theme. `NO_COLOR` retains
 plain semantic text. ASCII mode affects decoration, not the user's log contents.
-The home, help, interactive version output and demo launcher share the wordmark
-and “your experiments, one terminal” tagline. No animation or startup delay is
-introduced. Compact terminals and `banner=false` use a short title.
+Home uses the three-row horned-face lockup beside the DMUX wordmark. The
+demo launcher and interactive version output retain the small wordmark; help
+uses a compact DMUX heading to leave room for controls. No animation or startup delay is
+introduced. Compact terminals and `banner=false` use a short title. ASCII mode uses plain
+DMUX text. Mouse reporting is released on exit, suspend, and tmux handoff.
 
 Preferences cannot weaken typed stop confirmation or initiate experiment
 control. Notification hooks are explicitly configured external programs;

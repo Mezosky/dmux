@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from .adapters.base import Presentation
-from .bindings import legend
+from .mouse import help_hint, target
 
 
 COLORS = {
@@ -129,7 +129,9 @@ def experiment_tabs(models, selected: str, presentation: Presentation, width: in
         label = Text(name)
         label.truncate(allocation, overflow="ellipsis")
         style = "bold black on bright_cyan" if tag == selected else "grey74 on grey15"
+        begin = len(tabs)
         tabs.append(" " + label.plain + " ", style=style)
+        tabs.stylize(target("experiment", tag), begin, len(tabs))
         tabs.append(" ")
     tabs.append(suffix, style="grey50")
     return tabs
@@ -223,8 +225,7 @@ def render_dashboard(
         parts.append(Text("All experiment tabs are hidden. Press u to restore them."
                           if snapshot.get("hidden_count") else "No experiments are declared in this plan yet.",
                           style="yellow"))
-        parts.append(Text(("u restore · " if snapshot.get("hidden_count") else "") +
-                          "q quit · r refresh · ? help · read-only", style="grey58", no_wrap=True))
+        parts.append(help_hint())
         return Group(*parts)
     selected = selected or (active["model"] if active else snapshot["models"][0]["tag"])
     parts.append(experiment_tabs(snapshot["models"], selected, presentation, width))
@@ -276,13 +277,14 @@ def render_dashboard(
                 label,
                 saved,
                 f'{model["completed_stages"]}/{model["stages"]}' if model_tasks else "—",
-                current_state,
+                current_state, style=target("open_experiment", tag),
             )
         else:
             overview.add_row(
                 label,
                 saved,
                 *[state_cell(model_tasks.get(name)) for name in presentation.stages],
+                style=target("open_experiment", tag),
             )
     parts.append(overview)
 
@@ -341,14 +343,8 @@ def render_dashboard(
     footer = [Text("! " + warning, style="yellow") for warning in snapshot["warnings"][:2]]
     if notice:
         footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
-    keys = "n/p tabs · Enter details · t tmux · k/K stop · q quit · ? help"
-    if expanded or width >= 160:
-        keys = legend("dashboard")
-    suffix = " · read-only"
-    if width >= 120:
-        suffix = " · read-only monitoring; stops require confirmation"
     if interactive:
-        footer.append(Text(keys + suffix, style="grey58", no_wrap=True, overflow="ellipsis"))
+        footer.append(help_hint())
 
     if expanded or content_height(Group(*parts, *footer), width) + 3 <= height:
         steps = Table(box=None, expand=True, padding=(0, 1))

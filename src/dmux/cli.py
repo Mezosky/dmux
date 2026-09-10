@@ -23,6 +23,7 @@ from .ui import render_dashboard
 from .snapshots import export_snapshot
 from . import settings as preferences
 from .appearance import Appearance, VersionAction
+from .mouse import MouseEvent, MouseMap
 from .observations import Observations
 
 
@@ -240,14 +241,17 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
     try:
         while controller.running:
             navigate, previous_size = None, None
-            with keyboard() as read_keys, Live(
+            screen = MouseMap()
+            with keyboard(mouse=lambda: settings.values['mouse']) as read_keys, Live(
                 console=console, screen=True, auto_refresh=False, vertical_overflow="crop"
             ) as live:
                 while controller.running and navigate is None:
                     redraw = False
                     for key in read_keys():
                         redraw = True
-                        navigate = controller.key(key)
+                        navigate = (controller.mouse(screen.action(key, console.size))
+                                    if isinstance(key, MouseEvent) else controller.key(key))
+                        screen.regions = []
                         if navigate is not None or not controller.running:
                             break
                     if controller.picker is not None:
@@ -304,7 +308,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                                 presentation=adapter.presentation,
                             )
                         )
-                        live.update(Appearance(view, settings), refresh=True)
+                        live.update(screen.frame(Appearance(view, settings)), refresh=True)
                         previous_size = size
                     if controller.running and navigate is None:
                         time.sleep(0.15)

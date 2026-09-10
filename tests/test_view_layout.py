@@ -92,11 +92,11 @@ def test_compact_dashboard_footer_does_not_wrap(demo_snapshot):
     _, snapshot = demo_snapshot
     text = rendered(render_dashboard(snapshot, width=80, height=42), 80)
     assert "? help" in text.splitlines()[-1]
-    assert "n/p" in text.splitlines()[-1]
-    assert "read-only" in text.lower()
+    assert text.splitlines()[-1].strip() == "? help"
     snapshot.update(models=[], experiments=[], hidden_count=4)
     text = rendered(render_dashboard(snapshot, width=80, height=42), 80)
-    assert "u restore" in text.splitlines()[-1]
+    assert "Press u to restore" in text
+    assert text.splitlines()[-1].strip() == "? help"
 
 
 def test_gpu_disabled_is_distinct_from_failed(demo_snapshot):

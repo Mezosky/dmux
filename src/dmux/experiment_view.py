@@ -1,6 +1,8 @@
 """Experiment details and bounded previews of explicitly configured outputs."""
 from __future__ import annotations
 
+from .mouse import help_hint, target as mouse_target
+
 from collections import OrderedDict
 import json
 import os
@@ -105,9 +107,7 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         footer.append(Text("! " + warning, style="yellow"))
     if notice:
         footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
-    footer.append(Text("[ ] stage · t tmux · k/K stop · ? help", style="grey70", no_wrap=True))
-    navigation = Text(("Esc/q home" if return_home else "Esc/q back") +
-                      " · x hide · u restore", style="grey70", no_wrap=True)
+    navigation = help_hint()
     footer.append(navigation)
 
     def remaining(extra=()):
@@ -126,7 +126,7 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
             table.add_row(Text(("› " if item is task else "  ") + task_label(item, presentation)),
                           Text(item["state"], style=COLORS.get(item["state"], "white")),
                           ", ".join(str(p["pid"]) for p in item.get("processes", [])) or str(item["pid"] or "—"),
-                          duration(item["elapsed_seconds"]))
+                          duration(item["elapsed_seconds"]), style=mouse_target("stage", item["name"]))
         return table
 
     # Reserve the selected stage and results before expanding its neighbors.
@@ -149,7 +149,7 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         status_rows = content_height(Text("No valid points yet; check the configured field"), max(1, width - 8))
         limit = max(1, min(3, (remaining() - 2) // (2 + status_rows)))
         if len(task["metrics"]) > limit:
-            navigation.append(" · m next metrics")
+            navigation.append(" · m next metrics", style=mouse_target("key", "m"))
         parts.append(render_metrics(task, metric_reader, width=max(1, width - 4),
                                     limit=limit, offset=metric_offset))
     for count in range(min(len(tasks), 4 if has_metrics else 8), 1, -1):

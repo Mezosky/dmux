@@ -255,8 +255,17 @@ def test_watch_options_log_and_comparison_restore_terminal(tmp_path):
                 return
         pytest.fail(repr(bytes(output[-2500:])))
     try:
-        wait_for(b'DMUX')
-        os.write(master, b'o')
+        wait_for(b'? help')
+        os.write(master, b'?')
+        wait_for(b'KEYBOARD HELP')
+        # Click the actual options help entry through the CLI's mouse decoder
+        # and frame map, then continue exercising the keyboard fallback.
+        from dmux.bindings import render_help
+        from dmux.mouse import MouseMap
+        screen = MouseMap()
+        Console(file=io.StringIO(), width=120, height=42).print(screen.frame(render_help('dashboard')))
+        y, x, _, _ = next(region for region in screen.regions if region[3] == ('key', 'o'))
+        os.write(master, f'\x1b[<0;{x + 1};{y + 1}M\x1b[<0;{x + 1};{y + 1}m'.encode())
         wait_for(b'OPTIONS')
         os.write(master, b'o')
         time.sleep(.2)

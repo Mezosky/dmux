@@ -6,6 +6,10 @@ import csv
 import io
 from pathlib import Path
 
+from .bindings import render_help
+from .mouse import help_hint
+from .terminal import UP, DOWN
+
 from .metrics import MetricReader
 from .resources import summarize
 from .refresh import BackgroundRefresh
@@ -79,16 +83,39 @@ def report(rows, format='markdown'):
         *('| ' + ' | '.join(cell(row[key]) for key in COLUMNS) + ' |' for row in rows), ''])
 
 
+
+
 class ComparisonView:
     def __init__(self, snapshot, config, *, window=256):
         self.snapshot, self.config = snapshot, dict(config)
+        self.help = False
         self.reader = MetricReader()
         self.reader.max_points = window
         self.rows, self.error, self.offset = [], None, 0
         self.worker = BackgroundRefresh(lambda: compare(self.snapshot, self.config, self.reader))
         self.worker.request()
 
+    def mouse(self, action):
+        if not action or getattr(self, 'searching', False):
+            return False
+        if action[0] == 'close_help':
+            self.help = False
+            return False
+        if self.help and action in (('key', UP), ('key', DOWN)):
+            return False
+        if action[0] == 'key':
+            self.help = False
+            return self.key(action[1])
+        return False
+
     def key(self, key):
+        if self.help:
+            if key in ('?', 'q', '\x1b'):
+                self.help = False
+            return False
+        if key == '?' and not getattr(self, 'searching', False):
+            self.help = True
+            return False
         from .terminal import UP, DOWN
         if key in ('q', '\x1b', 'c'):
             return True
@@ -112,6 +139,8 @@ class ComparisonView:
         return True
 
     def render(self, *, height=40):
+        if self.help:
+            return render_help("comparison")
         from rich.console import Group
         from rich.panel import Panel
         from rich.table import Table
@@ -124,7 +153,7 @@ class ComparisonView:
                             for key in ('experiment', 'state', 'latest', 'window_best', 'samples', 'unit', 'warning')))
         return Panel(Group(table, Text(self.error or ('Loading bounded metrics…' if self.worker.pending else
                      'Recent-window best only; missing values remain unknown.')),
-                     Text('s sort . j/k scroll . r refresh . o options . q/Esc back')),
+                     help_hint()),
                      title=Text('DMUX / COMPARISON / ' + str(self.config.get('metric', 'not configured'))), border_style='cyan')
 
 

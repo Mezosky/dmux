@@ -44,6 +44,52 @@ class DashboardController:
         return selected_tag or (visible.get("active") or {}).get("model") or next(
             (m["tag"] for m in visible["models"]), None)
 
+    def mouse(self, action):
+        """Route only hits from the visible frame; confirmations accept typing only."""
+        if not action or self.pending_stop is not None:
+            return None
+        if self.options is not None:
+            if self.options.mouse(action):
+                self.options = None
+            return None
+        if self.picker is not None:
+            result = self.picker.mouse(action)
+            if result:
+                self.notice, self.picker = self.picker.notice, None
+                if result[0] == 'open':
+                    return result[1]
+                if self._entry == 'tmux' and self._return_home:
+                    self.running = False
+            return None
+        for name in ('log_view', 'comparison'):
+            view = getattr(self, name)
+            if view is not None:
+                if action == ('key', 'o') and not getattr(view, 'searching', False):
+                    from .options_view import OptionsView
+                    self.options = OptionsView(self.settings)
+                elif view.mouse(action):
+                    setattr(self, name, None)
+                return None
+        kind, value = action
+        if kind == 'close_help':
+            self.help = False
+        elif kind == 'key' and value not in ('k', 'K', 'd'):
+            if self.help and value in ('\x1b[A', '\x1b[B'):
+                return None
+            self.help = False
+            return self.key(value)
+        elif not self.help and kind in ('experiment', 'open_experiment'):
+            if value in {model['tag'] for model in self.visible_snapshot()['models']}:
+                self.selected, self.stage, self.metric_offset = value, None, 0
+                self.metric_reader.clear()
+                self.preview_reader.clear()
+                if kind == 'open_experiment':
+                    self.detailed = True
+        elif not self.help and kind == 'stage' and any(
+                task['model'] == self.current_model() and task['name'] == value for task in self.snapshot['tasks']):
+            self.stage, self.metric_offset = value, 0
+        return None
+
     def key(self, key):
         """Handle one decoded key, returning only an explicit tmux handoff."""
         if self.pending_stop is None and self.picker is None and not self.help and self.options is None and self.log_view is None and self.comparison is None:

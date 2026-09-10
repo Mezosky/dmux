@@ -13,7 +13,14 @@ PALETTES = {
 }
 
 
-def wordmark(settings=None, *, context='', compact=False):
+HOME_LOCKUP = (
+    '▀▄        ▄▀',
+    '▄█▀▀████▀▀█▄  █▀▄ █▀▄▀█ █ █ ▀▄▀',
+    '▀██▀█▀▀█▀██▀  █▄▀ █ ▀ █ █▄█ ▄▀▄',
+)
+
+
+def wordmark(settings=None, *, context='', compact=False, lockup=False):
     from rich.text import Text
     values = settings.values if settings is not None else {'banner': True, 'box_style': 'unicode'}
     if compact or not values['banner']:
@@ -23,6 +30,10 @@ def wordmark(settings=None, *, context='', compact=False):
     palette = theme if isinstance(theme, dict) else PALETTES[theme]
     if values['box_style'] == 'ascii':
         text.append('DMUX\n', style='bold bright_cyan')
+    elif lockup:
+        for index, line in enumerate(HOME_LOCKUP):
+            color = '#0891b2' if theme == 'cyan-dark' and index == 0 else palette['accent']
+            text.append(line + '\n', style='bold ' + color)
     else:
         text.append('█▀▄ █▀▄▀█ █ █ ▀▄▀\n', style='bold ' + ('#0891b2' if theme == 'cyan-dark' else palette['accent']))
         text.append('█▄▀ █ ▀ █ █▄█ ▄▀▄\n', style='bold ' + palette['accent'])

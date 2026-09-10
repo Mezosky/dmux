@@ -349,7 +349,7 @@ def test_responsive_render_uses_only_declared_experiments_and_stages(experiment_
     Console(file=stream, width=width, height=height, color_system=None).print(
         render_dashboard(snapshot, width=width, height=height, expanded=expanded))
     text = stream.getvalue()
-    assert "EXPERIMENT LAB" in text and "records saved" in text and "read-only" in text.lower()
+    assert "EXPERIMENT LAB" in text and "records saved" in text and "? help" in text
     assert "Image classifier" in text
 
 

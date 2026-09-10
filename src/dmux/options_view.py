@@ -1,6 +1,9 @@
 """Keyboard-editable preferences shared by each interactive view."""
 import json
 
+from .mouse import target, help_hint
+from .bindings import render_help
+
 from .settings import DEFAULTS, parse_value
 from .terminal import UP, DOWN, LEFT, RIGHT
 
@@ -13,8 +16,33 @@ class OptionsView:
     def __init__(self, settings):
         self.settings = settings
         self.index, self.editing, self.text, self.notice = 0, False, '', None
+        self.help = False
+
+    def mouse(self, action):
+        if not action or self.editing:
+            return False
+        kind, value = action
+        if kind == 'option' and not self.help and value in DEFAULTS:
+            self.index = list(DEFAULTS).index(value)
+            return self.key('\r')
+        if action[0] == 'close_help':
+            self.help = False
+            return False
+        if self.help and action in (('key', UP), ('key', DOWN)):
+            return False
+        if kind == 'key':
+            self.help = False
+            return self.key(value)
+        return False
 
     def key(self, key):
+        if self.help:
+            if key in ('?', 'q', '\x1b'):
+                self.help = False
+            return False
+        if key == '?' and not self.editing:
+            self.help = True
+            return False
         name = list(DEFAULTS)[self.index]
         try:
             if self.editing:
@@ -46,6 +74,8 @@ class OptionsView:
         return False
 
     def render(self, *, height=40):
+        if self.help:
+            return render_help("options", self.settings)
         from rich.panel import Panel
         from rich.text import Text
         keys = list(DEFAULTS)
@@ -56,8 +86,10 @@ class OptionsView:
             key = keys[index]
             value = self.text + '|' if self.editing and index == self.index else json.dumps(self.settings.values[key])
             body.append(f'{">" if index == self.index else " "} {key:22} {value} [{self.settings.sources[key]}]\n',
-                        style='bold cyan' if index == self.index else None)
-        body.append('\nj/k select; Enter edit/toggle; arrows change; Esc/o close and save\n')
+                        style=target('option', key, 'bold cyan' if index == self.index else ''))
+        body.append('\n')
+        body.append_text(help_hint())
+        body.append('\n')
         body.append('CLI and environment overrides remain authoritative.\n')
         body.append('Preferences never change experiments. Stops always require a typed label.')
         if self.notice:

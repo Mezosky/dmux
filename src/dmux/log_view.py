@@ -5,9 +5,14 @@ from .connectors import open_regular
 from .terminal import UP, DOWN
 
 
+from .bindings import render_help
+from .mouse import help_hint
+
+
 class LogView:
     def __init__(self, path, *, limit=500):
         self.path = Path(path) if path else None
+        self.help = False
         self.limit, self.follow, self.offset = limit, True, 0
         self.query, self.searching, self.error = '', False, None
         self.lines, self.stamp, self.limited = [], None, False
@@ -41,7 +46,27 @@ class LogView:
             self.error = str(exc)
             self.lines, self.stamp = [], None
 
+    def mouse(self, action):
+        if not action or getattr(self, 'searching', False):
+            return False
+        if action[0] == 'close_help':
+            self.help = False
+            return False
+        if self.help and action in (('key', UP), ('key', DOWN)):
+            return False
+        if action[0] == 'key':
+            self.help = False
+            return self.key(action[1])
+        return False
+
     def key(self, key, *, height=40):
+        if self.help:
+            if key in ('?', 'q', '\x1b'):
+                self.help = False
+            return False
+        if key == '?' and not getattr(self, 'searching', False):
+            self.help = True
+            return False
         if self.searching:
             if key in ('\r', '\n', '\x1b'):
                 self.searching = False
@@ -66,6 +91,8 @@ class LogView:
         return False
 
     def render(self, *, height=40):
+        if self.help:
+            return render_help("log")
         from rich.console import Group
         from rich.panel import Panel
         from rich.text import Text
@@ -83,5 +110,5 @@ class LogView:
                            Text('\n'.join(body) or self.error or 'No matching lines', overflow='ellipsis', no_wrap=True),
                            Text('Search: ' + self.query + ('|' if self.searching else '')),
                            Text(status, style='grey62'),
-                           Text('j/k scroll . Ctrl-D/U page . / search . f follow . r latest . q/Esc back')),
+                           help_hint()),
                      title=heading, border_style='cyan')

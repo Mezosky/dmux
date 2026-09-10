@@ -146,7 +146,7 @@ def test_enter_detail_cancel_stop_and_quit_restore_terminal_and_keep_jobs(live_e
         pytest.fail(f"Missing {needle!r}: {output[-3000:]!r}")
 
     try:
-        until(b"Enter details")
+        until(b"? help")
         os.write(master, b"\r")
         until(b"Metadata")
         until(str(processes[0].pid).encode())

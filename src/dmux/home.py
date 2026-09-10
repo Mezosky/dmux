@@ -15,6 +15,7 @@ from .snapshots import export_home
 from .settings import Settings, add_options, from_args
 from .options_view import OptionsView
 from .appearance import Appearance, wordmark, timestamp
+from .mouse import MouseEvent, MouseMap, target, help_hint
 from .observations import Observations
 
 
@@ -146,7 +147,7 @@ class Home:
         if current:
             self.selected = rows[(rows.index(current) + direction) % len(rows)]["id"]
 
-    def render(self, *, height=40, searching=False):
+    def render(self, *, height=40, width=120, searching=False):
         from rich import box
         from rich.console import Group
         from rich.panel import Panel
@@ -160,7 +161,7 @@ class Home:
         running = sum(bool(r["pids"]) for r in all_rows)
         scheduled = counts["scheduler running"] + counts["scheduled"]
         scheduler_text = f" · {scheduled} scheduler active" if scheduled else ""
-        parts = [wordmark(self.settings, context='ALL EXPERIMENTS', compact=height < 30),
+        parts = [wordmark(self.settings, context='ALL EXPERIMENTS', compact=height < 30 or width < 35, lockup=True),
             Text(f'{len(self.entries)} {"project" if len(self.entries) == 1 else "projects"} · {running} running{scheduler_text} · {counts["needs attention"]} need attention · {counts["complete"]} complete', style="grey74"),
             Text(f'Filter: {self.filter}   Search: {self.query}' + ("▏" if searching else ""), style="cyan")]
         opened_rows = {r["id"]: r for r in self.rows()}
@@ -169,7 +170,7 @@ class Home:
             if key in opened_rows:
                 row = opened_rows[key]
                 tabs.append(f' {row["project"]["name"]}/{row["label"]} ',
-                            style="bold black on cyan" if current and key == current["id"] else "cyan")
+                            style=target("recent", key, "bold black on cyan" if current and key == current["id"] else "cyan"))
         if self.opened:
             parts.append(tabs)
         table = Table(box=box.SIMPLE_HEAD, expand=True, padding=(0, 1))
@@ -184,7 +185,7 @@ class Home:
                      "cyan" if row["pids"] else "green" if row["state"] == "complete" else "yellow")
             table.add_row(Text(("› " if selected else "  ") + row["project"]["name"], style="bold white" if selected else "grey70"),
                 Text(row["label"]), Text(row["state"], style=color), Text(row["stages"]),
-                Text(",".join(str(p) for p in row["pids"]) or "—"))
+                Text(",".join(str(p) for p in row["pids"]) or "—"), style=target("run", row["id"]))
         parts.append(table)
         if not self.entries:
             parts.append(Text("No registered projects. Use dmux add /path/to/project.\nTry dmux demo --live for a small tour.", style="yellow"))
@@ -199,9 +200,7 @@ class Home:
         if self.notice:
             parts.append(Text(self.notice, style="yellow", overflow="ellipsis", no_wrap=True))
         parts.append(Text(f'{len(rows)} matching entries · stage states only; no cross-project percentage', style="grey62"))
-        parts.append(Text("j/k select · / search · f filter · Enter inspect · t tmux · q quit · ? help", style="grey70"))
-        parts.append(Text("Tab recent experiment · x close recent tab (jobs continue)", style="grey70"))
-        parts.append(Text("Registration never starts/stops jobs. Result plots load only inside an experiment.", style="grey62"))
+        parts.append(help_hint())
         return Panel(Group(*parts), border_style="grey35")
 
 
@@ -246,7 +245,7 @@ def main(argv=None):
             raise SystemExit(2)
         return
     if args.once or not console.is_terminal:
-        console.print(Appearance(home.render(height=console.height), settings))
+        console.print(Appearance(home.render(height=console.height, width=console.width), settings))
         if home.catalog_error:
             raise SystemExit(2)
         return
@@ -255,11 +254,40 @@ def main(argv=None):
     try:
         while running:
             action = None
-            with keyboard() as read_keys, Live(console=console, screen=True, auto_refresh=False, vertical_overflow="crop") as live:
+            screen = MouseMap()
+            with keyboard(mouse=lambda: settings.values['mouse']) as read_keys, Live(console=console, screen=True, auto_refresh=False, vertical_overflow="crop") as live:
                 previous, updated = None, -float("inf")
                 while running and action is None:
                     redraw = False
                     for key in read_keys():
+                        if isinstance(key, MouseEvent):
+                            hit = screen.action(key, console.size)
+                            screen.regions = []
+                            if not hit or searching:
+                                continue
+                            redraw = True
+                            if options is not None:
+                                if options.mouse(hit):
+                                    options = None
+                                continue
+                            kind, value = hit
+                            if kind == 'close_help':
+                                helping = False
+                                continue
+                            if kind == 'key':
+                                if helping and value in ('\x1b[A', '\x1b[B'):
+                                    continue
+                                helping, key = False, value
+                            elif not helping and kind in ('run', 'recent'):
+                                available = home.rows() if kind == 'recent' else home.visible()
+                                if not any(row['id'] == value for row in available):
+                                    continue
+                                if kind == 'recent':
+                                    home.query, home.filter = '', 'all'
+                                home.selected, key = value, '\r'
+                            else:
+                                continue
+                        screen.regions = []
                         if options is not None and key != '\x03':
                             if options.key(key):
                                 options = None
@@ -325,8 +353,8 @@ def main(argv=None):
                         home.refresh()
                         updated, redraw = now, True
                     if redraw or console.size != previous:
-                        view = options.render(height=console.height) if options else render_help('home', settings) if helping else home.render(height=console.height, searching=searching)
-                        live.update(Appearance(view, settings), refresh=True)
+                        view = options.render(height=console.height) if options else render_help('home', settings) if helping else home.render(height=console.height, width=console.width, searching=searching)
+                        live.update(screen.frame(Appearance(view, settings)), refresh=True)
                         previous = console.size
                     if running and action is None:
                         time.sleep(.1)

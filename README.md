@@ -77,6 +77,12 @@ and a command to reopen it. `--register` also adds the demo to the global home:
 after leaving the tour, run `dmux` from any directory to browse it again.
 No model downloads or GPU are needed.
 
+Click experiment tabs and rows to browse, or use the keyboard. The mouse wheel
+navigates lists and scrolls the log viewer. Press or click `? help` for controls,
+including options (`o`), logs (`l`), and comparison (`c`). Use `--no-mouse` with
+watch/home, or set `DMUX_MOUSE=false`, to keep terminal text selection.
+See [keyboard and mouse controls](docs/KEYS.md).
+
 ## One home for your experiments
 
 ```bash

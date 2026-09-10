@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .terminal import DOWN, UP
+from .terminal import DOWN, UP, LEFT, RIGHT
+from .mouse import target
 
 
 @dataclass(frozen=True)
@@ -46,8 +47,19 @@ BINDINGS = (
     Binding(("s", "S", "\t"), "s/Tab", "s", "Toggle sessions / panes", ("sessions",)),
     Binding(("d", "D"), "d", "d", "Review session removal; exact name required", ("sessions",)),
     Binding(("q", "Q", "\x1b"), "q/Esc", "q", "Close browser", ("sessions",)),
-    Binding(("r", "R"), "r", "r", "Refresh", ("dashboard", "detail", "home", "sessions")),
-    Binding(("?",), "?", "?", "Show keyboard help", ("dashboard", "detail", "home", "sessions")),
+    Binding(("j", DOWN), "j/↓", "j", "Scroll down", ("log", "comparison", "options")),
+    Binding(("k", UP), "k/↑", "k", "Scroll up", ("log", "comparison", "options")),
+    Binding(("\x04", "\x15"), "Ctrl-D/U", "\x04", "Page down / up", ("log",)),
+    Binding(("/",), "/", "/", "Search the retained log window", ("log",)),
+    Binding(("f",), "f", "f", "Toggle follow mode", ("log",)),
+    Binding(("s",), "s", "s", "Cycle comparison sort order", ("comparison",)),
+    Binding(("\r", "\n"), "Enter", "\r", "Edit or toggle selected preference", ("options",)),
+    Binding((LEFT,), "←", LEFT, "Previous value", ("options",)),
+    Binding((RIGHT,), "→", RIGHT, "Next value", ("options",)),
+    Binding(("o",), "o", "o", "Options", ("log", "comparison")),
+    Binding(("q", "\x1b"), "q/Esc", "q", "Back (options save on close)", ("log", "comparison", "options")),
+    Binding(("r", "R"), "r", "r", "Refresh", ("dashboard", "detail", "home", "sessions", "log", "comparison")),
+    Binding(("?",), "?", "?", "Show keyboard help", ("dashboard", "detail", "home", "sessions", "log", "comparison", "options")),
 )
 
 
@@ -70,13 +82,33 @@ def render_help(view: str, settings=None):
     if settings is not None and settings.values['key_style'] != 'both':
         lines = [line.replace('/↓', '').replace('/↑', '') if settings.values['key_style'] == 'letters'
                  else line.replace('n/↓', '↓').replace('p/↑', '↑').replace('j/↓', '↓').replace('k/↑', '↑') for line in lines]
-    return Panel(Group(wordmark(settings, context='HELP'), Text("\n".join([*lines, "", "?/Esc/q closes help · Ctrl-C quits"]))),
+    body = Text()
+    bindings = [binding for binding in BINDINGS if view in binding.views]
+    for line, binding in zip(lines, bindings):
+        # Stop/removal controls remain keyboard-only, including in help.
+        safe = not ((view in ('dashboard', 'detail') and binding.action in ('k', 'K'))
+                    or (view == 'sessions' and binding.action == 'd'))
+        body.append(line + "\n", style=target('key', binding.keys[0]) if safe else None)
+    body.append("\nMouse: click tabs/rows/options; wheel scrolls.\n", style='grey70')
+    body.append("Esc closes help", style=target('close_help', '', 'cyan'))
+    return Panel(Group(wordmark(settings, context='HELP', compact=True), body),
                  title="DMUX / KEYBOARD HELP", border_style="cyan")
 
 
+
 def markdown() -> str:
-    lines = ["# Keyboard controls", "", "Generated from `dmux.bindings.BINDINGS`.", ""]
-    for view in ("dashboard", "detail", "home", "sessions"):
+    lines = ["# Keyboard and mouse controls", "", "Generated from `dmux.bindings.BINDINGS`.", "",
+             "Press or click `? help` for controls. Click a tab to select it, an experiment row to",
+             "open details, or a stage row to inspect it. Home rows/recent tabs open details;",
+             "session rows open the selected tmux destination. Click a preference to edit/toggle it.",
+             "The wheel navigates lists/tabs and scrolls logs or comparisons. Help entries for",
+             "navigation and options are clickable; stop/removal confirmation remains typed.",
+             "", "Mouse reporting is enabled only in interactive terminals, using",
+             "[SGR mouse reporting](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Extended-coordinates).",
+             "Use `--no-mouse`, `DMUX_MOUSE=false`, or `dmux settings set mouse false` to disable it.",
+             "Keyboard controls remain available; terminal/emulator shortcuts can bypass mouse",
+             "reporting for text selection. dmux does not change your tmux server settings.", ""]
+    for view in ("dashboard", "detail", "home", "sessions", "log", "comparison", "options"):
         lines += [f"## {view.title()}", "", "| Keys | Action |", "| --- | --- |"]
         lines += [f"| {binding.label} | {binding.description} |" for binding in BINDINGS if view in binding.views]
         lines.append("")

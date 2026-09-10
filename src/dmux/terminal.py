@@ -20,7 +20,7 @@ class TerminalSignal(SystemExit):
 
 
 @contextmanager
-def keyboard():
+def keyboard(*, mouse=True):
     """Yield a non-blocking key reader and always restore terminal settings."""
 
     if not sys.stdin.isatty() or os.name != "posix":
@@ -34,12 +34,22 @@ def keyboard():
     output_stream = sys.stdout  # Capture before Rich redirects writes through its renderer.
     handlers = {}
     resumed = False
+    mouse_enabled = False
+
+    def set_mouse(enabled):
+        nonlocal mouse_enabled
+        enabled = bool(enabled and output_stream.isatty() and os.environ.get("TERM") != "dumb")
+        if enabled != mouse_enabled:
+            output_stream.write("\x1b[?1000h\x1b[?1006h" if enabled else "\x1b[?1006l\x1b[?1000l")
+            output_stream.flush()
+            mouse_enabled = enabled
 
     def handle_signal(number, frame):
         nonlocal resumed
         if number != signal.SIGTSTP:
             # Unwind Live before keyboard's finally restores termios.
             raise TerminalSignal(128 + number)
+        set_mouse(False)
         termios.tcsetattr(descriptor, termios.TCSADRAIN, previous)
         output_stream.write("\x1b[?1049l\x1b[?25h")
         output_stream.flush()
@@ -49,6 +59,7 @@ def keyboard():
         tty.setcbreak(descriptor)
         output_stream.write("\x1b[?1049h\x1b[?25l")
         output_stream.flush()
+        set_mouse(mouse() if callable(mouse) else mouse)
         resumed = True
 
     try:
@@ -57,24 +68,45 @@ def keyboard():
                 handlers[number] = signal.getsignal(number)
                 signal.signal(number, handle_signal)
         tty.setcbreak(descriptor)
+        set_mouse(mouse() if callable(mouse) else mouse)
         pending, escaped_at = "", None
 
         def read():
             nonlocal pending, escaped_at, resumed
+            set_mouse(mouse() if callable(mouse) else mouse)
             if select.select([descriptor], [], [], 0)[0]:
-                pending += os.read(descriptor, 32).decode(errors="ignore")
+                pending += os.read(descriptor, 4096).decode(errors="ignore")
             output = [RESUME] if resumed else []
             resumed = False
             while pending:
                 if pending.startswith("\x1b"):
                     escaped_at = time.monotonic() if escaped_at is None else escaped_at
+                    # Older terminals may ignore SGR mode but report legacy
+                    # mouse packets. Never interpret their coordinates as keys.
+                    if pending.startswith("\x1b[M"):
+                        if len(pending) >= 6:
+                            pending, escaped_at = pending[6:], None
+                            continue
+                        if time.monotonic() - escaped_at > 1:
+                            pending, escaped_at = "", None
+                        break
                     match = re.match(r"\x1b\[[0-?]*[ -/]*[@-~]", pending)
                     if match:
-                        if match[0] in {UP, DOWN, LEFT, RIGHT}:
+                        report = re.fullmatch(r"\x1b\[<(\d{1,5});(\d{1,5});(\d{1,5})([Mm])", match[0])
+                        if report:
+                            from .mouse import MouseEvent
+                            button, x, y = map(int, report.groups()[:3])
+                            if mouse_enabled:
+                                output.append(MouseEvent(button, x - 1, y - 1, report[4] == "M"))
+                        elif match[0] in {UP, DOWN, LEFT, RIGHT}:
                             output.append(match[0])
                         pending = pending[len(match[0]) :]
                         escaped_at = None
                         continue
+                    if pending.startswith("\x1b[<"):
+                        if len(pending) > 64 or time.monotonic() - escaped_at > 1:
+                            pending, escaped_at = "", None
+                        break
                     if time.monotonic() - escaped_at < 0.05:
                         break
                 output.append(pending[0])
@@ -84,8 +116,10 @@ def keyboard():
         yield read
     finally:
         try:
-            termios.tcsetattr(descriptor, termios.TCSADRAIN, previous)
+            set_mouse(False)
         finally:
-            for number, handler in handlers.items():
-                signal.signal(number, handler)
-
+            try:
+                termios.tcsetattr(descriptor, termios.TCSADRAIN, previous)
+            finally:
+                for number, handler in handlers.items():
+                    signal.signal(number, handler)
