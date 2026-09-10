@@ -4,6 +4,9 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import json
+import shlex
+import sys
 from pathlib import Path
 
 from .bindings import render_help
@@ -16,6 +19,7 @@ from .refresh import BackgroundRefresh
 
 COLUMNS = ('experiment', 'stage', 'state', 'metric', 'latest', 'window_best', 'samples', 'unit',
            'cpu_percent', 'rss_bytes', 'gpu_bytes', 'warning')
+MISSING_METRIC = 'No matching configured metric source'
 
 
 def validate_config(config):
@@ -46,8 +50,10 @@ def compare(snapshot, config, reader=None):
                       for source in task.get('metrics', []) if source['label'] == metric]
         row = dict.fromkeys(COLUMNS)
         row.update(experiment=experiment['tag'], metric=metric)
-        if len(candidates) != 1:
-            row['warning'] = 'Metric missing or ambiguous; choose one explicit stage and label'
+        if not candidates:
+            row['warning'] = MISSING_METRIC
+        elif len(candidates) != 1:
+            row['warning'] = 'Metric ambiguous; choose one explicit stage and label'
         else:
             task, source = candidates[0]
             result = reader.read(task['directory'], source)
@@ -68,7 +74,15 @@ def compare(snapshot, config, reader=None):
     return known + [r for r in rows if r[key] is None]
 
 
+def omitted_notice(rows):
+    count = sum(row['warning'] == MISSING_METRIC for row in rows)
+    return (f'Omitted {count} experiment{"s" if count != 1 else ""} without the selected configured metric.'
+            if count else '')
+
+
 def report(rows, format='markdown'):
+    notice = omitted_notice(rows)
+    rows = [row for row in rows if row['warning'] != MISSING_METRIC]
     if format == 'csv':
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=COLUMNS)
@@ -80,20 +94,23 @@ def report(rows, format='markdown'):
     return '\n'.join(['# DMUX result comparison', '',
         'Best means the best valid sample in the bounded recent window, not an all-time best.', '',
         '| ' + ' | '.join(COLUMNS) + ' |', '| ' + ' | '.join('---' for _ in COLUMNS) + ' |',
-        *('| ' + ' | '.join(cell(row[key]) for key in COLUMNS) + ' |' for row in rows), ''])
+        *('| ' + ' | '.join(cell(row[key]) for key in COLUMNS) + ' |' for row in rows), '',
+        *([notice, ''] if notice else [])])
 
 
 
 
 class ComparisonView:
-    def __init__(self, snapshot, config, *, window=256):
+    def __init__(self, snapshot, config, *, window=256, adapter_name='filesystem'):
         self.snapshot, self.config = snapshot, dict(config)
+        self.adapter_name = adapter_name
         self.help = False
         self.reader = MetricReader()
         self.reader.max_points = window
         self.rows, self.error, self.offset = [], None, 0
         self.worker = BackgroundRefresh(lambda: compare(self.snapshot, self.config, self.reader))
-        self.worker.request()
+        if self.config.get('metric'):
+            self.worker.request()
 
     def mouse(self, action):
         if not action or getattr(self, 'searching', False):
@@ -145,6 +162,26 @@ class ComparisonView:
         from rich.panel import Panel
         from rich.table import Table
         from rich.text import Text
+        if not self.config.get('metric'):
+            sources = list(dict.fromkeys((source['label'], task.get('stage'))
+                           for task in self.snapshot.get('tasks', []) for source in task.get('metrics', [])))[:12]
+            label, stage = sources[0] if sources else ('YOUR_METRIC_LABEL', None)
+            example = {'metric': label, **({'stage': stage} if stage else {})}
+            command = ['dmux', 'report', '--metric', label]
+            if stage:
+                command += ['--stage', stage]
+            if self.adapter_name != 'filesystem':
+                command += ['--adapter', self.adapter_name]
+            for key in ('project_root', 'plan_dir'):
+                if self.snapshot.get(key):
+                    command += ['--' + key.replace('_', '-'), str(self.snapshot[key])]
+            available = ('Configured metrics: ' + ', '.join(dict.fromkeys(label for label, _ in sources))
+                         if sources else 'No metrics configured yet. Add a metrics source to a task first.')
+            return Panel(Group(Text('Choose a metric to compare', style='bold cyan'), Text(available),
+                Text('\nAdd this top-level comparison key to plan.json (example):'),
+                Text(json.dumps({'comparison': example})),
+                Text('\nOr request a report directly:'), Text(shlex.join(command), style='cyan'),
+                Text(''), help_hint('comparison')), title='DMUX / COMPARISON', border_style='grey35')
         table = Table('EXPERIMENT', 'STATE', 'LATEST', 'WINDOW BEST', 'SAMPLES', 'UNIT', 'WARNING', expand=True)
         limit = max(1, height - 8)
         self.offset = min(self.offset, max(0, len(self.rows) - limit))
@@ -184,11 +221,14 @@ def main(argv=None):
                                                        if getattr(args, key) is not None}}
         reader = MetricReader()
         reader.max_points = Settings().values['metric_window']
-        output = report(compare(snapshot, config, reader), args.format)
+        rows = compare(snapshot, config, reader)
+        output = report(rows, args.format)
         if args.output:
             with args.output.open('x', encoding='utf-8') as handle:
                 handle.write(output)
         else:
             print(output, end='')
+        if args.format == 'csv' and (notice := omitted_notice(rows)):
+            print(notice, file=sys.stderr)
     except (OSError, ValueError) as exc:
         parser.exit(2, str(exc) + '\n')

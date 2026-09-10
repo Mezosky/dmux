@@ -18,8 +18,9 @@ from .comparison import ComparisonView
 
 class DashboardController:
     def __init__(self, snapshot, adapter, navigator, *, selected=None, stage=None,
-                 entry=None, return_home=False, settings=None):
+                 entry=None, return_home=False, settings=None, adapter_name='filesystem'):
         self.snapshot, self.adapter, self.navigator = snapshot, adapter, navigator
+        self.adapter_name = adapter_name
         self.selected, self.stage = selected, stage
         self._entry, self._return_home = entry, return_home
         self.running, self.detailed, self.help = True, entry == "detail", False
@@ -145,7 +146,7 @@ class DashboardController:
             self.options = OptionsView(self.settings)
         elif key == 'c':
             self.comparison = ComparisonView(self.snapshot, self.snapshot.get('comparison', {}),
-                                              window=self.settings.values['metric_window'])
+                                              window=self.settings.values['metric_window'], adapter_name=self.adapter_name)
         elif key == 'l' and self.current_model():
             task = selected_task(self.snapshot, self.current_model(), self.stage)
             self.log_view = LogView(task.get('log') if task else None, limit=self.settings.values['log_tail'])

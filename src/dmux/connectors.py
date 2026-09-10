@@ -175,6 +175,28 @@ class FileArtifact:
 ANSI_ESCAPE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 
+def head_text(path, n=5, *, max_bytes=4096, max_line_length=180):
+    """Return a sanitized, bounded file beginning without parsing its format."""
+    if path is None or n <= 0:
+        return []
+    if max_bytes <= 0:
+        raise ValueError('head_text requires a positive byte limit')
+    try:
+        with open_regular(Path(path)) as handle:
+            raw = handle.read(max_bytes).decode('utf-8', errors='replace')
+    except OSError:
+        return []
+    output = []
+    for line in raw.splitlines():
+        line = ANSI_ESCAPE.sub('', line)
+        line = ''.join(c for c in line if c.isprintable() or c == '\t').strip()
+        if line:
+            output.append(line[:max_line_length])
+        if len(output) == n:
+            break
+    return output
+
+
 def tail_log(
     path: str | Path | None,
     n: int = 3,

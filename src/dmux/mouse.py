@@ -17,11 +17,27 @@ def target(kind, value, style=''):
     return Style.parse(style) + Style(meta={'dmux_action': (kind, value)})
 
 
-def help_hint(view='dashboard'):
-    """Three quiet, clickable essentials; the full binding list lives in help."""
+def help_hint(view='dashboard', *, width=80):
+    """Show view navigation when it fits; retain the essentials on narrow screens."""
     from rich.text import Text
     text = Text(no_wrap=True, overflow='ellipsis')
     text.append(' ? help ', style=target('key', '?', 'bold bright_cyan on grey15'))
+    hint_length = len(text)
+    navigation = Text()
+    extra = {
+        'home': [('/', '/ search'), ('f', 'f filter'), ('\r', 'Enter details')],
+        'dashboard': [('n', 'n/p tabs'), ('\r', 'Enter details'), ('t', 't tmux'), ('l', 'l logs')],
+        'detail': [('[', '[ previous stage'), (']', '] next stage'), ('t', 't tmux'), ('l', 'l logs')],
+    }.get(view, [])
+    for key, label in extra:
+        navigation.append('  ·  ', style='grey35')
+        if key == 'n':
+            navigation.append('n', style=target('key', 'n', 'cyan'))
+            navigation.append('/', style='grey70')
+            navigation.append('p', style=target('key', 'p', 'cyan'))
+            navigation.append(' tabs', style='grey70')
+        else:
+            navigation.append(label, style=target('key', key, 'cyan'))
     if view != 'options':
         text.append('  ·  ', style='grey35')
         text.append(' o options ', style=target('key', 'o', 'cyan'))
@@ -29,6 +45,9 @@ def help_hint(view='dashboard'):
     key = 'q' if view in ('dashboard', 'home') else '\x1b'
     label = 'q quit' if view in ('dashboard', 'home') else 'Esc save & back' if view == 'options' else 'Esc back'
     text.append(' ' + label + ' ', style=target('key', key, 'grey70'))
+    if width >= 100 and text.cell_len + navigation.cell_len <= width:
+        # Insert navigation after Help while preserving each span's click target.
+        return text[:hint_length] + navigation + text[hint_length:]
     return text
 
 

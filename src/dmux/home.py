@@ -200,7 +200,7 @@ class Home:
         if self.notice:
             parts.append(Text(self.notice, style="yellow", overflow="ellipsis", no_wrap=True))
         parts.append(Text(f'{len(rows)} matching entries · stage states only; no cross-project percentage', style="grey62"))
-        parts.append(help_hint("home"))
+        parts.append(help_hint("home", width=width - 4))
         return Panel(Group(*parts), border_style="grey35")
 
 

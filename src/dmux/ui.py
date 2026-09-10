@@ -238,7 +238,7 @@ def render_dashboard(
         parts.append(Text("All experiment tabs are hidden. Press u to restore them."
                           if snapshot.get("hidden_count") else "No experiments are declared in this plan yet.",
                           style="yellow"))
-        parts.append(help_hint())
+        parts.append(help_hint(width=width))
         return Group(*parts)
     selected = selected or (active["model"] if active else snapshot["models"][0]["tag"])
     parts.append(experiment_tabs(snapshot["models"], selected, presentation, width))
@@ -357,7 +357,7 @@ def render_dashboard(
     if notice:
         footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
     if interactive:
-        footer.append(help_hint())
+        footer.append(help_hint(width=width))
 
     if expanded or content_height(Group(*parts, *footer), width) + 3 <= height:
         steps = Table(box=None, expand=True, padding=(0, 1))

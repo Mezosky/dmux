@@ -13,6 +13,11 @@ when older content was omitted. Search covers this bounded window, not the
 entire file. Escape/control sequences in logs are treated as data, never terminal
 commands. Monitoring and browsing never change the log.
 
+The detail Outputs panel shows the beginning of `.json` files and the tail of
+logs and JSONL files. Each preview reads at most 4 KiB and is cached until file
+identity, size, or modification time changes. These are text previews, not JSON
+validation or metric reads.
+
 ## Stalls, events and notification hooks
 
 ```bash
@@ -80,7 +85,9 @@ Declare one key metric label per plan:
 Each experiment must have exactly one matching configured metric source. Press
 `c` to open the comparison. `s` cycles sorting by experiment/latest/window-best,
 `j`/`k` scroll, and `r` requests a new bounded read of the current snapshot.
-The overview and global home still avoid metric reads. Comparison is an explicit
+Without a `comparison.metric` selection, the view shows configured labels,
+an example `comparison` plan entry, and a report command using the same project
+and adapter. The overview and global home still avoid metric reads. Comparison is an explicit
 view, analogous to opening details, and never changes progress or liveness.
 
 ```bash
@@ -92,7 +99,10 @@ Reports go to stdout unless `--output` names a new file; existing files are
 never overwritten. `--sort latest|window_best` and `--descending` control order.
 Numeric sorting rejects mixed units. A comparison covers at most 128 experiments,
 with the existing byte/sample/read budgets per source. Missing or ambiguous
-metrics and malformed samples remain visible. Best means the best **valid
+metrics remain visible in the comparison view. Reports omit experiments with no
+matching configured source and add an omission count (a Markdown footnote, or
+stderr for CSV so the CSV stays machine-readable). Ambiguous sources and
+malformed samples remain visible in report rows. Best means the best **valid
 sample in the bounded recent window**, using an explicit min/max goal. Without
 a goal it remains unknown; it is never an all-time-best claim. Reports include
 resource columns, but a one-shot report usually has no second CPU sample and

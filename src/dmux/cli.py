@@ -236,7 +236,8 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         return
 
     controller = DashboardController(snapshot, adapter, navigator, selected=args.model,
-                                     stage=args.stage, entry=_entry, return_home=_return_home, settings=settings)
+                                     stage=args.stage, entry=_entry, return_home=_return_home, settings=settings,
+                                     adapter_name=args.adapter)
     controller.snapshot = observations.observe(snapshot)
     try:
         while controller.running:

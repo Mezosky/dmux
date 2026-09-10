@@ -94,7 +94,11 @@ class Settings:
         # another dmux instance's unrelated preferences are preserved.
         with ProjectCatalog(self.path)._locked():
             stored = self.read()
-            stored.update(self.dirty)
+            for key, value in self.dirty.items():
+                if value == DEFAULTS[key]:
+                    stored.pop(key, None)
+                else:
+                    stored[key] = value
             validate(stored)
             atomic_json(self.path, stored)
         self.dirty.clear()

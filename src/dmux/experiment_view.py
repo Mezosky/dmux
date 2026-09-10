@@ -10,12 +10,12 @@ import time
 from itertools import islice
 from pathlib import Path
 
-from .connectors import tail_log
+from .connectors import head_text, tail_log
 from .ui import COLORS, content_height, duration, progress_text, selected_task, task_label
 
 
 class PreviewReader:
-    """Bounded file tails and short-lived glob discovery for an opened detail."""
+    """Bounded heads/tails and short-lived glob discovery for an opened detail."""
 
     def __init__(self, *, clock=time.monotonic):
         self.clock = clock
@@ -42,10 +42,16 @@ class PreviewReader:
         return self.matches[key][1]
 
     def tail(self, path, **options):
+        return self._read(path, head=False, **options)
+
+    def head(self, path, **options):
+        return self._read(path, head=True, **options)
+
+    def _read(self, path, *, head, **options):
         if not path:
             return []
         path = Path(path)
-        key = (path, tuple(sorted(options.items())))
+        key = (path, head, tuple(sorted(options.items())))
         try:
             info = path.stat()
         except OSError:
@@ -53,7 +59,7 @@ class PreviewReader:
             return []
         stamp = (info.st_dev, info.st_ino, info.st_mtime_ns, info.st_size)
         if key not in self.files or self.files[key][0] != stamp:
-            self.files[key] = (stamp, tail_log(path, **options))
+            self.files[key] = (stamp, (head_text if head else tail_log)(path, **options))
         self.files.move_to_end(key)
         while len(self.files) > 16:
             self.files.popitem(last=False)
@@ -61,7 +67,7 @@ class PreviewReader:
 
 
 def output_previews(task, reader=None):
-    """Read only configured files, with bounded glob matches and text tails."""
+    """Preview configured JSON beginnings and log tails with bounded discovery."""
     if not task.get("directory"):
         return []
     reader = reader or PreviewReader()
@@ -80,7 +86,8 @@ def output_previews(task, reader=None):
                 size = match.stat().st_size
             except OSError:
                 continue
-            text = (reader.tail(match, n=5, max_bytes=4096, max_line_length=180)
+            preview = reader.head if match.suffix.lower() == '.json' else reader.tail
+            text = (preview(match, n=5, max_bytes=4096, max_line_length=180)
                     if match.suffix.lower() in {".json", ".jsonl", ".log", ".txt", ".csv"} else [])
             previews.append((str(match), size, text))
             if len(previews) >= 8:
@@ -107,7 +114,7 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         footer.append(Text("! " + warning, style="yellow"))
     if notice:
         footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
-    navigation = help_hint("detail")
+    navigation = help_hint("detail", width=width - 4)
     footer.append(navigation)
 
     def remaining(extra=()):
@@ -149,6 +156,9 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         status_rows = content_height(Text("No valid points yet; check the configured field"), max(1, width - 8))
         limit = max(1, min(3, (remaining() - 2) // (2 + status_rows)))
         if len(task["metrics"]) > limit:
+            if navigation.cell_len + len(" · m next metrics") > width - 4:
+                navigation = help_hint("detail")
+                footer[-1] = navigation
             navigation.append(" · m next metrics", style=mouse_target("key", "m"))
         parts.append(render_metrics(task, metric_reader, width=max(1, width - 4),
                                     limit=limit, offset=metric_offset))
@@ -198,7 +208,8 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
             lines = []
             for name, size, preview in entries[:count]:
                 lines.append(f"{name} ({size:,} bytes)")
-                lines.extend(preview[-depth:] if depth else [])
+                lines.extend((preview[:depth] if Path(name).suffix.lower() == '.json' else preview[-depth:])
+                             if depth else [])
             if not lines:
                 lines = ["No configured outputs are present yet." if task.get("outputs")
                          else "No output previews configured; add outputs to this task in plan.json."]

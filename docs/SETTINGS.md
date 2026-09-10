@@ -27,7 +27,9 @@ Precedence is **CLI flag > DMUX_* environment > file > default**. Environment
 values use JSON syntax: `DMUX_GPU=false`, `DMUX_INTERVAL=5`, or
 `DMUX_NOTIFY_CMD='["my-notifier"]'`. The overlay shows the source next to each
 value. A CLI/environment override remains authoritative while a different file
-preference is saved. Merely opening dmux or reading settings writes nothing.
+preference is saved. Saving an edited value equal to its default removes that
+file override, so its source returns to `default`; unrelated preferences are
+preserved. Merely opening dmux or reading settings writes nothing.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
@@ -67,6 +69,9 @@ Watch/home also accept `--logo-style minimal`, or use `DMUX_LOGO_STYLE=minimal`.
 The existing `banner=false` preference continues to force the compact title.
 
 Built-in palettes are `cyan-dark`, `light`, `high-contrast`, and `monochrome`.
+`light` is for terminals already configured with a light background: it changes
+text and selection colors, without painting the screen or changing your terminal
+background. Use `cyan-dark` on a dark terminal.
 Custom themes define exactly `accent`, `ok`, `warning`, `error`, `muted`, and
 `selected`, with Rich color names or `#RRGGBB` strings. Example:
 
@@ -79,7 +84,8 @@ plain semantic text. ASCII mode affects decoration, not the user's log contents.
 Home, the dashboard, the demo launcher, and interactive version output use
 the three-row horned-face DMUX lockup. Dashboard headers keep adapter, state,
 and clock beside it; help uses a compact DMUX heading to leave room for controls.
-The footer keeps just clickable Help, Options, and Back/Quit controls. No animation or startup delay is
+Wide home/dashboard footers also show their main navigation and search controls.
+Narrow footers retain clickable Help, Options, and Back/Quit controls. No animation or startup delay is
 introduced. Compact terminals and `banner=false` use a short title. ASCII mode uses plain
 DMUX text. Mouse reporting is released on exit, suspend, and tmux handoff.
 

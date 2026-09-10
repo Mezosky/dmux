@@ -2,7 +2,8 @@
 
 Generated from `dmux.bindings.BINDINGS`.
 
-Press or click `? help` for controls. Click a tab to select it, an experiment row to
+Wide home/dashboard footers show key navigation controls; narrow footers keep the essentials.
+Press or click `? help` for all controls. Click a tab to select it, an experiment row to
 open details, or a stage row to inspect it. Home rows/recent tabs open details;
 session rows open the selected tmux destination. Click a preference to edit/toggle it.
 The wheel navigates lists/tabs and scrolls logs or comparisons. Help entries for

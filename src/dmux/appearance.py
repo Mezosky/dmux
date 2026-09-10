@@ -99,15 +99,21 @@ class Appearance:
         for segment in console.render(self.renderable, options):
             text, style, control = segment
             if values['theme'] == 'light' and not control:
-                style = Style(color='#111827', bgcolor='#ffffff') + (style or Style())
+                # A palette for an already-light terminal; never paint isolated
+                # white text rectangles over the terminal's own background.
+                style = Style(color='#111827') + (style or Style())
                 if style.color and style.color.name in ('white', 'bright_white'):
                     style = style + Style(color='#111827')
+                if style.bgcolor and style.bgcolor.name in ('grey11', 'grey15'):
+                    style = style + Style(bgcolor='#e2e8f0')
+                elif style.bgcolor and style.bgcolor.name in ('cyan', 'bright_cyan'):
+                    style = style + Style(color='#ffffff', bgcolor=palette['selected'])
             if values['box_style'] == 'ascii' and not control:
                 def plain(char):
                     if 'BOX DRAWINGS' in unicodedata.name(char, ''):
                         name = unicodedata.name(char)
                         return '-' if 'HORIZONTAL' in name and 'VERTICAL' not in name and 'DOWN' not in name and 'UP' not in name else '|' if 'VERTICAL' in name and 'HORIZONTAL' not in name else '+'
-                    return {'›': '>', '—': '-', '·': '.', '…': '.', '▏': '|', '↑': '^', '↓': 'v', '✓': '+', '×': 'x'}.get(char, char)
+                    return {'›': '>', '—': '-', '·': '.', '●': '*', '…': '.', '▏': '|', '↑': '^', '↓': 'v', '✓': '+', '×': 'x'}.get(char, char)
                 text = ''.join(plain(char) for char in text)
             if style and style.color:
                 name = style.color.name
