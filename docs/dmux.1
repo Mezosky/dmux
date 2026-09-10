@@ -1,0 +1,62 @@
+.TH DMUX 1 "September 2026" "dmux-ml" "User Commands"
+.SH NAME
+dmux \- observe experiments in one terminal
+.SH SYNOPSIS
+.B dmux
+.RI [ command ] " [options]"
+.SH DESCRIPTION
+DMUX observes explicitly configured files, processes and scheduler reports.
+Closing it leaves jobs running. Stops always require an exact typed label.
+.SH COMMANDS
+.TP
+.B home
+Browse registered projects. Use --json for a state-only machine report.
+.TP
+.B watch
+Open a plan. --project-root and --plan-dir select explicit locations.
+.TP
+.B json
+Print a snapshot. --schema-version 1 retains legacy aliases; default is 2.
+.TP
+.B report
+Compare a configured metric using --metric LABEL and optional --stage NAME.
+--format markdown|csv selects output; --output PATH creates a new file.
+Best values are limited to the bounded recent window.
+.TP
+.B settings list|get|set|reset
+Manage validated preferences. Values use JSON syntax; strings may be unquoted.
+.TP
+.B timeline
+Show opt-in observed transitions. --json prints the versioned event list.
+.TP
+.B demo --live
+Launch tiny independent workloads in a fresh temporary project.
+.TP
+.B add, remove, projects
+Manage registrations without changing experiment files or jobs.
+.TP
+.B init, doctor
+Create a new plan or perform read-only connection diagnostics.
+.TP
+.B sessions, kill
+Explicit session management and identity-checked process stop controls.
+.TP
+.B adapters, completions
+List installed adapters or generate Bash/Zsh argcomplete shell code.
+.SH KEYS
+n/p select experiments; Enter opens details; l opens the log viewer;
+c opens comparison; o opens options; ? shows help; q/Esc returns.
+The log viewer supports j/k, Ctrl-D/U, / search and f follow.
+.SH SETTINGS
+Precedence is explicit CLI flag, DMUX_* environment variable, settings.json,
+then default. Environment values use JSON syntax.
+Settings are stored under $XDG_CONFIG_HOME/dmux, or ~/.config/dmux.
+Opt-in transition history is stored under $XDG_STATE_HOME/dmux.
+History describes observations, not unobserved activity between sessions.
+--notify-cmd accepts an argv command, never a shell script. Event JSON is sent
+on stdin only when state changes; delivery is bounded and asynchronous.
+.SH PLATFORMS
+Linux and macOS with Python 3.11 or newer. Native Windows is unsupported.
+.SH SEE ALSO
+.BR tmux (1),
+.BR ssh (1)

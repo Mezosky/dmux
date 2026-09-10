@@ -20,7 +20,7 @@ def load_adapter(name: str):
     if name in BUILTINS:
         return BUILTINS[name]()
     matches = [entry for entry in entry_points(group="dmux.adapters") if entry.name == name]
-    if len(matches) > 1:
+    if len({getattr(entry, "value", id(entry)) for entry in matches}) > 1:
         raise ValueError(f"Multiple entry points register adapter {name!r}; remove the conflicting installation")
     if not matches:
         available = ", ".join(adapter_names())

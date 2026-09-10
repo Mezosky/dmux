@@ -9,10 +9,13 @@ from .terminal import keyboard
 from .bindings import action_key, render_help
 from .refresh import BackgroundRefresh
 from .tmux import clean
+from .settings import Settings
+from .options_view import OptionsView
+from .appearance import Appearance
 
 
 class SessionBrowser:
-    def __init__(self, navigator, tasks=(), *, preferred=None, sessions=True, background=False):
+    def __init__(self, navigator, tasks=(), *, preferred=None, sessions=True, background=False, settings=None):
         self.navigator = navigator
         self.manager = SessionManager(navigator)
         self.tasks = list(tasks)
@@ -28,6 +31,7 @@ class SessionBrowser:
         self.window_names = {}
         self.locations = {}
         self.help = False
+        self.settings, self.options = settings or Settings(), None
         self.worker = BackgroundRefresh(self._read) if background else None
         self.refresh()
         preferred_pane = self.data["associations"].get(preferred, {}).get("pane")
@@ -73,12 +77,15 @@ class SessionBrowser:
                                 and (self.sessions or p["pane_id"] == preferred["pane_id"])), 0))
 
     def refresh(self):
+        self.last_refresh = time.monotonic()
         if self.worker is not None:
             self.worker.request()
         else:
             self._apply(self._read())
 
     def poll(self):
+        if self.worker and time.monotonic() - self.last_refresh >= self.settings.values['interval']:
+            self.refresh()
         result = self.worker.take() if self.worker is not None else None
         if result is None:
             return False
@@ -93,6 +100,10 @@ class SessionBrowser:
         """Return ('open', pane), ('close', None), or None."""
         if key == "\x03":
             return "close", None
+        if self.options is not None:
+            if self.options.key(key):
+                self.options = None
+            return None
         if self.removal is not None:
             if key == "\x1b":
                 self.removal, self.confirmation = None, ""
@@ -120,10 +131,15 @@ class SessionBrowser:
             self.index = 0
             return None
         if self.help:
-            if key in ("?", "q", "Q", "\x1b"):
+            if key == 'o':
+                self.options = OptionsView(self.settings)
+            elif key in ("?", "q", "Q", "\x1b"):
                 self.help = False
             return None
         key = action_key(key, "sessions")
+        if key == 'o':
+            self.options = OptionsView(self.settings)
+            return None
         if key == "?":
             self.help = True
             return None
@@ -157,8 +173,10 @@ class SessionBrowser:
         from rich.table import Table
         from rich.text import Text
 
+        if self.options:
+            return self.options.render(height=height)
         if self.help:
-            return render_help("sessions")
+            return render_help("sessions", self.settings)
         heading = Text("TMUX  /  Loading sessions…" if self.worker and self.worker.pending and not self.data["panes"]
                        else "TMUX  /  SESSION & PANE PICKER", style="bold bright_cyan")
         if self.removal:
@@ -225,7 +243,7 @@ def browse(navigator, *, json_output=False):
         print(json.dumps(browser.data, indent=2))
         return
     if not console.is_terminal:
-        console.print(browser.render(height=console.height))
+        console.print(Appearance(browser.render(height=console.height), browser.settings))
         return
     running = True
     try:
@@ -245,7 +263,7 @@ def browse(navigator, *, json_output=False):
                             break
                     refreshed = browser.poll()
                     if pressed or refreshed or console.size != previous_size:
-                        live.update(browser.render(height=console.height), refresh=True)
+                        live.update(Appearance(browser.render(height=console.height), browser.settings), refresh=True)
                         previous_size = console.size
                     if running and selected is None:
                         time.sleep(.1)
@@ -254,3 +272,5 @@ def browse(navigator, *, json_output=False):
                 browser.refresh()
     except KeyboardInterrupt:
         pass
+    finally:
+        browser.settings.save()

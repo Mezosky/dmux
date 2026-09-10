@@ -183,6 +183,33 @@
       "items": {
         "$ref": "#/$defs/task_template"
       }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric"
+      ],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sort": {
+          "enum": [
+            "experiment",
+            "latest",
+            "window_best"
+          ]
+        },
+        "descending": {
+          "type": "boolean"
+        }
+      }
     }
   },
   "required": [

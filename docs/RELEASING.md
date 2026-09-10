@@ -84,3 +84,9 @@ cannot be overwritten: make fixes in a new version after publication.
 
 Schema v2 removes scoped JSON alias keys. Existing scripts can select
 `--schema-version 1`; see [the JSON migration contract](SNAPSHOTS.md).
+
+Identical adapter entry-point values from stale editable/distribution metadata
+are deduplicated. Different factories registered under the same name still fail
+closed. Uninstalling the previous local `dmux` distribution before installing
+`dmux-ml` remains the recommended migration, because duplicate metadata can also
+confuse package managers and uninstall operations.

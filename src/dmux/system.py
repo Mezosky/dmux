@@ -8,7 +8,7 @@ import time
 
 from .refresh import BackgroundRefresh
 
-def running_processes(adapter, *, table=None, cwd_cache=None) -> list[dict]:
+def running_processes(adapter, *, table=None, cwd_cache=None, resource_sampler=None) -> list[dict]:
     """Find only processes explicitly named by an adapter."""
 
     import psutil
@@ -39,6 +39,7 @@ def running_processes(adapter, *, table=None, cwd_cache=None) -> list[dict]:
                     "out": str(destination) if destination else None,
                     "started": info["create_time"],
                     "command": command,
+                    "resources": resource_sampler.read(process, identity, time.monotonic()) if resource_sampler else None,
                 }
             )
         except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
@@ -63,6 +64,9 @@ class HostSampler:
         self.cwd_cache = {}
         self.process_time = self.gpu_time = -float("inf")
         self.devices = {"devices": [], "error": None}
+        self.gpu_interval = 5.0
+        from .resources import ProcessResources
+        self.resource_sampler = ProcessResources()
 
     def processes(self, adapter):
         import psutil
@@ -72,11 +76,12 @@ class HostSampler:
             self.table = list(psutil.process_iter(["pid", "cmdline", "create_time", "status"]))
             self.cwd_cache.clear()
             self.process_time = now
-        return running_processes(adapter, table=self.table, cwd_cache=self.cwd_cache)
+            self.resource_sampler.retain({(p.info['pid'], p.info['create_time']) for p in self.table})
+        return running_processes(adapter, table=self.table, cwd_cache=self.cwd_cache, resource_sampler=self.resource_sampler)
 
     def gpu(self):
         now = time.monotonic()
-        if now - self.gpu_time >= 5:
+        if now - self.gpu_time >= self.gpu_interval:
             if self.gpu_worker is None:
                 self.devices = retain_gpu_reading(self.devices, gpu_info())
             else:
@@ -122,5 +127,6 @@ def gpu_info() -> dict:
                             "used_gib": values[1] / 1024, "total_gib": values[2] / 1024})
         except ValueError:
             invalid += 1
-    return {"devices": devices,
+    from .resources import gpu_processes
+    return {"devices": devices, "process_memory": gpu_processes(),
             "error": f"Skipped {invalid} malformed GPU telemetry line(s)" if invalid else None}

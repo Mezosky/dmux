@@ -10,11 +10,15 @@ from .metrics import MetricReader
 from .process_actions import ProcessActionError, prepare_stop, stop
 from .session_browser import SessionBrowser
 from .ui import selected_task
+from .settings import Settings
+from .options_view import OptionsView
+from .log_view import LogView
+from .comparison import ComparisonView
 
 
 class DashboardController:
     def __init__(self, snapshot, adapter, navigator, *, selected=None, stage=None,
-                 entry=None, return_home=False):
+                 entry=None, return_home=False, settings=None):
         self.snapshot, self.adapter, self.navigator = snapshot, adapter, navigator
         self.selected, self.stage = selected, stage
         self._entry, self._return_home = entry, return_home
@@ -23,7 +27,10 @@ class DashboardController:
         self.metric_reader, self.metric_offset = MetricReader(), 0
         self.preview_reader, self.hidden = PreviewReader(), set()
         self.updated = time.monotonic()
-        self.picker = (SessionBrowser(navigator, snapshot["tasks"], preferred=selected, background=True)
+        self.settings = settings or Settings()
+        self.options, self.log_view = None, None
+        self.comparison = None
+        self.picker = (SessionBrowser(navigator, snapshot["tasks"], preferred=selected, background=True, settings=self.settings)
                        if entry == "tmux" else None)
 
     def visible_snapshot(self):
@@ -39,12 +46,25 @@ class DashboardController:
 
     def key(self, key):
         """Handle one decoded key, returning only an explicit tmux handoff."""
-        if self.pending_stop is None and self.picker is None and not self.help:
+        if self.pending_stop is None and self.picker is None and not self.help and self.options is None and self.log_view is None and self.comparison is None:
             # Keep Esc distinct: it closes detail but does not quit the dashboard.
             if key != "\x1b":
                 key = action_key(key, "detail" if self.detailed else "dashboard")
         if key == "\x03":
             self.running = False
+        elif self.options is not None:
+            if self.options.key(key):
+                self.options = None
+        elif self.comparison is not None:
+            if key == 'o':
+                self.options = OptionsView(self.settings)
+            elif self.comparison.key(key):
+                self.comparison = None
+        elif self.log_view is not None:
+            if key == 'o' and not self.log_view.searching:
+                self.options = OptionsView(self.settings)
+            elif self.log_view.key(key):
+                self.log_view = None
         elif self.pending_stop is not None:
             if key == "\x1b":
                 self.pending_stop, self.stop_confirmation = None, ""
@@ -69,10 +89,20 @@ class DashboardController:
                 if self._entry == "tmux" and self._return_home:
                     self.running = False
         elif self.help:
-            if key in ("?", "q", "Q", "\x1b"):
+            if key == 'o':
+                self.options = OptionsView(self.settings)
+            elif key in ("?", "q", "Q", "\x1b"):
                 self.help = False
         elif key == "?":
             self.help = True
+        elif key == 'o':
+            self.options = OptionsView(self.settings)
+        elif key == 'c':
+            self.comparison = ComparisonView(self.snapshot, self.snapshot.get('comparison', {}),
+                                              window=self.settings.values['metric_window'])
+        elif key == 'l' and self.current_model():
+            task = selected_task(self.snapshot, self.current_model(), self.stage)
+            self.log_view = LogView(task.get('log') if task else None, limit=self.settings.values['log_tail'])
         elif key in "qQ\x1b":
             if self.detailed:
                 self.detailed = False
@@ -106,7 +136,8 @@ class DashboardController:
         elif key in "tT":
             self.notice = None
             current = self.current_model()
-            self.picker = SessionBrowser(self.navigator, self.snapshot["tasks"], preferred=current, background=True)
+            self.picker = SessionBrowser(self.navigator, self.snapshot["tasks"], preferred=current, background=True,
+                                         settings=self.settings)
         elif key in "aA":
             self.selected, self.stage = None, None
         elif key in "nNpP" and self.visible_snapshot()["models"]:

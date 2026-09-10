@@ -28,6 +28,9 @@ BINDINGS = (
     Binding(("x", "X"), "x", "x", "Hide experiment tab; jobs keep running"),
     Binding(("u", "U"), "u", "u", "Restore hidden experiment tabs"),
     Binding(("m",), "m", "m", "Next metrics page when available; does not save results", ("detail",)),
+    Binding(("l",), "l", "l", "Open configured log: scroll, search and follow"),
+    Binding(("c",), "c", "c", "Compare configured key metrics (explicit bounded reads)"),
+    Binding(("o",), "o", "o", "Options; preferences never change experiments", ("dashboard", "detail", "home", "sessions")),
     Binding(("q", "Q", "\x1b"), "q/Esc", "q", "Back from details; q quits dashboard"),
     Binding(("j", DOWN), "j/↓", "j", "Next run", ("home",)),
     Binding(("k", UP), "k/↑", "k", "Previous run", ("home",)),
@@ -57,12 +60,17 @@ def legend(view: str) -> str:
     return " · ".join(binding.label for binding in BINDINGS if view in binding.views)
 
 
-def render_help(view: str):
+def render_help(view: str, settings=None):
     from rich.panel import Panel
     from rich.text import Text
 
     lines = [f"{binding.label:12} {binding.description}" for binding in BINDINGS if view in binding.views]
-    return Panel(Text("\n".join([*lines, "", "?/Esc/q closes help · Ctrl-C quits"])),
+    from rich.console import Group
+    from .appearance import wordmark
+    if settings is not None and settings.values['key_style'] != 'both':
+        lines = [line.replace('/↓', '').replace('/↑', '') if settings.values['key_style'] == 'letters'
+                 else line.replace('n/↓', '↓').replace('p/↑', '↑').replace('j/↓', '↓').replace('k/↑', '↑') for line in lines]
+    return Panel(Group(wordmark(settings, context='HELP'), Text("\n".join([*lines, "", "?/Esc/q closes help · Ctrl-C quits"]))),
                  title="DMUX / KEYBOARD HELP", border_style="cyan")
 
 

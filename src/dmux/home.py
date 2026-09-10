@@ -12,6 +12,10 @@ from .connectors import open_regular
 from .system import HostSampler
 from .bindings import action_key, render_help
 from .snapshots import export_home
+from .settings import Settings, add_options, from_args
+from .options_view import OptionsView
+from .appearance import Appearance, wordmark, timestamp
+from .observations import Observations
 
 
 def run_state(tasks):
@@ -30,7 +34,7 @@ def run_state(tasks):
 
 
 class Home:
-    def __init__(self, catalog=None, *, sampler=None, clock=time.monotonic, background=False):
+    def __init__(self, catalog=None, *, sampler=None, clock=time.monotonic, background=False, settings=None):
         self.catalog = catalog or ProjectCatalog()
         self.sampler = sampler or HostSampler()
         self.clock = clock
@@ -43,6 +47,9 @@ class Home:
         self.opened = []
         self.catalog_error = None
         self.background = background
+        self.settings = settings or Settings()
+        self.completed_at = {}
+        self.observations = Observations(self.settings) if background else None
 
     def refresh(self, *, force=False):
         now = self.clock()
@@ -82,12 +89,14 @@ class Home:
                         results_dir=entry.get("results_dir"), adapter=adapter,
                         processes=lambda a=adapter: self.sampler.processes(a), gpu=self.sampler.gpu)
                 snapshot = self.monitors[key].snapshot()
+                if self.observations:
+                    snapshot = self.observations.observe(snapshot)
                 if snapshot["state"] == "waiting":
                     snapshot = {**snapshot, "state": "unavailable"}
             except Exception as exc:
                 snapshot = {"state": "unavailable", "message": str(exc), "tasks": [], "experiments": []}
             self.snapshots[key] = snapshot
-            self.due[key] = now + (30 if snapshot["state"] == "complete" else 2)
+            self.due[key] = now + (max(30, self.settings.values['interval']) if snapshot["state"] == "complete" else self.settings.values['interval'])
             refreshed += 1
             if not force and refreshed >= 4:
                 break
@@ -115,7 +124,15 @@ class Home:
         return rows
 
     def visible(self):
-        return [r for r in self.rows() if
+        rows = self.rows()
+        for row in rows:
+            if row['state'] == 'complete':
+                self.completed_at.setdefault(row['id'], self.clock())
+            else:
+                self.completed_at.pop(row['id'], None)
+        age = self.settings.values['hide_completed_after']
+        return [r for r in rows if
+            not (age and r['id'] in self.completed_at and self.clock() - self.completed_at[r['id']] >= age) and
             self.query.casefold() in (r["project"]["name"] + " " + r["label"] + " " + (r["experiment"] or "")).casefold()
             and (self.filter == "all" or self.filter == "running" and (r["pids"] or r["state"] == "scheduler running") or
                  self.filter == "attention" and r["state"] in {"needs attention", "unavailable", "invalid", "interrupted"})]
@@ -143,7 +160,7 @@ class Home:
         running = sum(bool(r["pids"]) for r in all_rows)
         scheduled = counts["scheduler running"] + counts["scheduled"]
         scheduler_text = f" · {scheduled} scheduler active" if scheduled else ""
-        parts = [Text("DMUX / ALL EXPERIMENTS", style="bold bright_cyan"),
+        parts = [wordmark(self.settings, context='ALL EXPERIMENTS', compact=height < 30),
             Text(f'{len(self.entries)} {"project" if len(self.entries) == 1 else "projects"} · {running} running{scheduler_text} · {counts["needs attention"]} need attention · {counts["complete"]} complete', style="grey74"),
             Text(f'Filter: {self.filter}   Search: {self.query}' + ("▏" if searching else ""), style="cyan")]
         opened_rows = {r["id"]: r for r in self.rows()}
@@ -158,7 +175,7 @@ class Home:
         table = Table(box=box.SIMPLE_HEAD, expand=True, padding=(0, 1))
         for heading in ("PROJECT", "EXPERIMENT", "STATE", "STAGES", "PID"):
             table.add_column(heading, overflow="ellipsis", no_wrap=True)
-        limit = max(1, height - 16)
+        limit = max(1, height - 18)
         index = rows.index(current) if current else 0
         start = max(0, min(index - limit // 2, len(rows) - limit))
         for row in rows[start:start + limit]:
@@ -172,11 +189,13 @@ class Home:
         if not self.entries:
             parts.append(Text("No registered projects. Use dmux add /path/to/project.\nTry dmux demo --live for a small tour.", style="yellow"))
         elif not rows:
-            parts.append(Text("No matches. Change the search or press f to switch filters.", style="yellow"))
+            parts.append(Text("No matches. Change search/f filters, or use o to disable completed-run hiding.", style="yellow"))
         if current:
             parts.append(Text(current["project"]["plan_dir"], style="grey62", overflow="ellipsis", no_wrap=True))
             age = max(0, time.time() - current["updated"]) if current["updated"] else None
             parts.append(Text(f'Last checked {age:.0f}s ago · r refresh' if age is not None else "Not checked yet · r refresh", style="grey62"))
+            if current['updated']:
+                parts.append(Text(timestamp(current['updated'], self.settings.values['clock']), style='grey62'))
         if self.notice:
             parts.append(Text(self.notice, style="yellow", overflow="ellipsis", no_wrap=True))
         parts.append(Text(f'{len(rows)} matching entries · stage states only; no cross-project percentage', style="grey62"))
@@ -196,13 +215,18 @@ def main(argv=None):
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--schema-version", type=int, choices=(1, 2), default=2)
-    parser.add_argument("--no-gpu", action="store_true")
+    parser.add_argument("--no-gpu", action="store_true", default=None)
+    add_options(parser, existing=('gpu',))
     args = parser.parse_args(argv)
     console = Console(highlight=False)
     background = console.is_terminal and not (args.once or args.json)
-    home = Home(sampler=HostSampler(background=background), background=background)
-    if args.no_gpu:
-        home.sampler.gpu = lambda: {"devices": [], "error": "disabled"}
+    try:
+        settings = from_args(args)
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
+    home = Home(sampler=HostSampler(background=background), background=background, settings=settings)
+    sample_gpu = home.sampler.gpu
+    home.sampler.gpu = lambda: sample_gpu() if settings.values['gpu'] else {"devices": [], "error": "disabled"}
     state_path = user_directory("state") / "home.json"
     if not args.json and not args.once and console.is_terminal:
         try:
@@ -222,11 +246,12 @@ def main(argv=None):
             raise SystemExit(2)
         return
     if args.once or not console.is_terminal:
-        console.print(home.render(height=console.height))
+        console.print(Appearance(home.render(height=console.height), settings))
         if home.catalog_error:
             raise SystemExit(2)
         return
     running, searching, helping = True, False, False
+    options = None
     try:
         while running:
             action = None
@@ -235,6 +260,15 @@ def main(argv=None):
                 while running and action is None:
                     redraw = False
                     for key in read_keys():
+                        if options is not None and key != '\x03':
+                            if options.key(key):
+                                options = None
+                            redraw = True
+                            continue
+                        if key == 'o' and not searching:
+                            options = OptionsView(settings)
+                            redraw = True
+                            continue
                         if not searching and not helping and key != "t":
                             key = action_key(key, "home")
                         redraw = True
@@ -284,11 +318,15 @@ def main(argv=None):
                                 break
                             home.notice = "Project unavailable or empty. Check its path with dmux doctor --plan-dir PATH."
                     now = time.monotonic()
+                    home.sampler.gpu_interval = settings.values['gpu_interval']
+                    for monitor in home.monitors.values():
+                        monitor.gpu_interval = settings.values['gpu_interval']
                     if now - updated >= .5:
                         home.refresh()
                         updated, redraw = now, True
                     if redraw or console.size != previous:
-                        live.update(render_help("home") if helping else home.render(height=console.height, searching=searching), refresh=True)
+                        view = options.render(height=console.height) if options else render_help('home', settings) if helping else home.render(height=console.height, searching=searching)
+                        live.update(Appearance(view, settings), refresh=True)
                         previous = console.size
                     if running and action is None:
                         time.sleep(.1)
@@ -319,6 +357,7 @@ def main(argv=None):
         pass
     finally:
         try:
+            settings.save()
             atomic_json(state_path, {"version": 1, "selected": home.selected, "opened": home.opened})
         except (OSError, CatalogError):
             pass  # Optional view state must never interfere with terminal restoration.

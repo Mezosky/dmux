@@ -66,3 +66,10 @@ GPU telemetry can retain the last good devices after a failure, with
 
 Session-list, project-list and doctor JSON remain separate contracts. The
 snapshot version selector does not change those reports or the catalog format.
+
+Before the first 0.2 publication, optional `comparison` configuration and
+`processes[].resources` observations were added to the v2 schema. Resource
+objects report CPU/RSS samples and read errors; first CPU samples remain null.
+GPU process-memory observations live within the extensible `gpu` object. The
+snapshot still excludes metric histories and comparison result values. These
+live only in the explicitly requested comparison/report view.

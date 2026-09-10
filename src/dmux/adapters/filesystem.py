@@ -203,6 +203,9 @@ class FilesystemAdapter:
 
     @staticmethod
     def _validate(plan: Mapping) -> None:
+        if 'comparison' in plan:
+            from ..comparison import validate_config
+            validate_config(plan['comparison'])
         def text_field(obj, key, prefix):
             if key in obj and (not isinstance(obj[key], str) or not obj[key]):
                 raise ValueError(f"{prefix}.{key} must be a non-empty string")

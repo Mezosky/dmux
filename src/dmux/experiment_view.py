@@ -161,6 +161,14 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         parts.append(Text("Process: " + " ".join(task["process_command"]), style="grey62",
                           no_wrap=True, overflow="ellipsis"))
     metadata = task.get("metadata") or {}
+    if remaining() >= 1 and task.get('processes'):
+        from .resources import summarize
+        resource = summarize(task, snapshot.get('gpu', {}))
+        cpu = f'{resource["cpu_percent"]:.1f}%' if resource['cpu_percent'] is not None else 'warming up / unavailable'
+        rss = f'{resource["rss_bytes"] / 1024**2:.1f} MiB' if resource['rss_bytes'] is not None else 'unknown'
+        gpu = f'{resource["gpu_bytes"] / 1024**2:.1f} MiB' if resource['gpu_bytes'] is not None else 'unknown'
+        parts.append(Text(f'Matched PIDs: CPU {cpu} / RSS {rss} / GPU {gpu}' + (' (stale)' if resource['gpu_stale'] else ''),
+                          overflow='ellipsis', no_wrap=True))
     if metadata:
         entries = list(metadata.items())[:5]
         for count in range(len(entries), 0, -1):

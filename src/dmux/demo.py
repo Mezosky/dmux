@@ -290,6 +290,11 @@ def main(argv=None) -> None:
     parser.add_argument("--session-prefix", default="dmux", help="Prefix for the four session names")
     parser.add_argument("--register", action="store_true", help="Show this demo project in the global home screen")
     args = parser.parse_args(argv)
+    from rich.console import Console
+    from .settings import Settings
+    from .appearance import Appearance, wordmark
+    settings = Settings()
+    Console().print(Appearance(wordmark(settings, context='DEMO'), settings))
     args.steps = args.steps if args.steps is not None else 300 if args.live else 8
     args.delay = args.delay if args.delay is not None else 1.0 if args.live else 0.0 if args.quick else 0.15
     if args.steps < 1 or not math.isfinite(args.delay) or args.delay < 0:
@@ -336,7 +341,8 @@ def main(argv=None) -> None:
         try:
             # Chat shells keep completed experiments' sessions alive for review.
             for name in EXPERIMENTS:
-                sid = manager.create(links[name], project_root=root, results_dir=results / name)
+                sid = manager.create(links[name], project_root=root, results_dir=results / name,
+                                     command=settings.values['ai_cli'])
                 created.append((name, sid))
             create_plan(queue / "plan.json", definition)
             for name, sid in created:

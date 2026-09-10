@@ -168,6 +168,9 @@
     },
     "message": {
       "type": "string"
+    },
+    "comparison": {
+      "type": "object"
     }
   },
   "required": [
@@ -264,6 +267,12 @@
               "command": {
                 "type": [
                   "array",
+                  "null"
+                ]
+              },
+              "resources": {
+                "type": [
+                  "object",
                   "null"
                 ]
               }

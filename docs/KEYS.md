@@ -17,6 +17,9 @@ Generated from `dmux.bindings.BINDINGS`.
 | K | Review stop for experiment; exact label required |
 | x | Hide experiment tab; jobs keep running |
 | u | Restore hidden experiment tabs |
+| l | Open configured log: scroll, search and follow |
+| c | Compare configured key metrics (explicit bounded reads) |
+| o | Options; preferences never change experiments |
 | q/Esc | Back from details; q quits dashboard |
 | r | Refresh |
 | ? | Show keyboard help |
@@ -36,6 +39,9 @@ Generated from `dmux.bindings.BINDINGS`.
 | x | Hide experiment tab; jobs keep running |
 | u | Restore hidden experiment tabs |
 | m | Next metrics page when available; does not save results |
+| l | Open configured log: scroll, search and follow |
+| c | Compare configured key metrics (explicit bounded reads) |
+| o | Options; preferences never change experiments |
 | q/Esc | Back from details; q quits dashboard |
 | r | Refresh |
 | ? | Show keyboard help |
@@ -44,6 +50,7 @@ Generated from `dmux.bindings.BINDINGS`.
 
 | Keys | Action |
 | --- | --- |
+| o | Options; preferences never change experiments |
 | j/↓ | Next run |
 | k/↑ | Previous run |
 | / | Search |
@@ -59,6 +66,7 @@ Generated from `dmux.bindings.BINDINGS`.
 
 | Keys | Action |
 | --- | --- |
+| o | Options; preferences never change experiments |
 | / | Search |
 | j/n/↓ | Next session or pane |
 | k/p/↑ | Previous session or pane |

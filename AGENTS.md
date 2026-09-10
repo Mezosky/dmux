@@ -34,6 +34,12 @@ sequence, or results layout.
 - `src/dmux/onboarding.py`: explicit setup wizard and exclusive new-plan creation.
 - `src/dmux/diagnostics.py`: read-only connection checks and stable diagnostic JSON.
 - `src/dmux/demo.py`: explicitly launched tiny demos; independent live workers.
+- `src/dmux/settings.py`: schema-validated, locked user preferences with explicit precedence.
+- `src/dmux/options_view.py`, `appearance.py`: shared options UI, themes and wordmark.
+- `src/dmux/log_view.py`: bounded configured-log search, scrolling and follow mode.
+- `src/dmux/comparison.py`: explicitly opened result comparison and requested reports.
+- `src/dmux/observations.py`: opt-in observed transitions, stalls and notification hooks.
+- `src/dmux/resources.py`: resource samples attributed to matched process identities.
 - `examples/`: tiny heterogeneous workloads; examples never supply core defaults.
 
 ## Non-negotiable invariants
@@ -100,7 +106,8 @@ sequence, or results layout.
 19. Global summaries show stage states, not percentages or sums of incompatible
     units. Missing/broken projects stay visible and must not block healthy ones.
     Share host sampling; bound refresh work and back off completed projects.
-20. Result metrics load only in an explicitly opened experiment detail view.
+20. Result metrics load only in an explicitly opened experiment detail/comparison
+    view or an explicitly requested report, never in an implicit overview refresh.
     They never enter progress, completion, or liveness decisions. No guessed
     loss/accuracy fields, synthetic historical curves, inferred goals, or
     all-time-best claims from a recent window. JSON scalar summaries remain
@@ -109,6 +116,10 @@ sequence, or results layout.
     lock and atomic replace, fail closed on invalid versions/data, and reject
     target symlinks. Tests isolate all XDG locations, never the real user's
     catalog. No result data or cached PIDs are persisted in UI state.
+22. Preferences never weaken exact-label stop confirmation or initiate experiment
+    control. History and notification hooks are opt-in; persist observed state
+    transitions without result contents or PIDs. Mark stalls as progress advisories,
+    separate from process liveness. Never reconstruct unobserved timeline events.
 
 ## Visual contract
 

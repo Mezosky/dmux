@@ -46,6 +46,7 @@ class Monitor:
         self.gpu_source = gpu
         self.gpu_cache: dict = {"devices": [], "error": None}
         self.gpu_time = -math.inf
+        self.gpu_interval = 5.0
 
     def _plan_root(self, plan: Mapping) -> Path:
         if self.explicit_project_root:
@@ -183,7 +184,8 @@ class Monitor:
                     "pid": job["pid"] if job else None,
                     "process_started": job["started"] if job else None,
                     "process_command": job.get("command") if job else None,
-                    "processes": [{"pid": p["pid"], "started": p["started"], "command": p.get("command")}
+                    "processes": [{"pid": p["pid"], "started": p["started"], "command": p.get("command"),
+                                   "resources": p.get('resources')}
                                   for p in jobs],
                     "elapsed_seconds": now - job["started"] if job else None,
                     "directory": str(path) if path else None,
@@ -255,7 +257,7 @@ class Monitor:
                 }
             )
 
-        if now - self.gpu_time >= 5:
+        if now - self.gpu_time >= self.gpu_interval:
             self.gpu_cache = retain_gpu_reading(self.gpu_cache, self.gpu_source())
             self.gpu_time = now
         disk = shutil.disk_usage(self.queue)
@@ -281,6 +283,7 @@ class Monitor:
             "projects": {name: {"root": str(value.root), "results_dir": str(value.results)}
                          for name, value in locations.items() if name is not None},
             "tmux_config": {**plan.get("tmux", {}), "links": links},
+            "comparison": plan.get('comparison', {}),
             "updated": now,
             "tasks": tasks,
             "models": models,

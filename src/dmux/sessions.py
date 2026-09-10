@@ -141,7 +141,9 @@ def main(argv=None):
         offset = raw.index("--")
         command, raw = raw[offset + 1:], raw[:offset]
     args = parser.parse_args(raw)
-    nav = TmuxNavigator(socket=args.tmux_socket, client=args.tmux_client)
+    from .settings import Settings
+    settings = Settings()
+    nav = TmuxNavigator(socket=args.tmux_socket or settings.values['tmux_socket'], client=args.tmux_client)
     manager = SessionManager(nav)
     if command and args.action != "new":
         parser.error("A command after -- is only supported by sessions new")
@@ -150,7 +152,7 @@ def main(argv=None):
             if not args.name:
                 parser.error("sessions new requires a name")
             sid = manager.create(args.name, project_root=args.project_root,
-                                 results_dir=args.results_dir, command=command)
+                                 results_dir=args.results_dir, command=command or settings.values['ai_cli'])
             print(f"Created {args.name} ({sid}); open it with dmux sessions")
         elif args.action == "remove":
             panes = nav.snapshot([])["panes"]

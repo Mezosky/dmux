@@ -9,3 +9,5 @@ prune screenshots
 exclude logo.png
 exclude AGENTS.md
 exclude MIGRATION.md
+
+include docs/dmux.1

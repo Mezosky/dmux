@@ -1,4 +1,5 @@
 """Command-line interface for dmux."""
+# PYTHON_ARGCOMPLETE_OK
 from __future__ import annotations
 
 import argparse
@@ -10,7 +11,6 @@ import sys
 import time
 
 from .monitor import Monitor
-from ._version import __version__
 from .experiment_view import render_detail, render_stop_confirmation
 from .controller import DashboardController
 from .bindings import render_help
@@ -21,6 +21,9 @@ from .terminal import keyboard
 from .tmux import TmuxNavigator, parse_links
 from .ui import render_dashboard
 from .snapshots import export_snapshot
+from . import settings as preferences
+from .appearance import Appearance, VersionAction
+from .observations import Observations
 
 
 def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.ArgumentParser:
@@ -34,7 +37,8 @@ def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.Ar
         epilog=(
             "bare dmux opens all registered experiments. Commands: dmux add PATH · dmux remove NAME · "
             "dmux home · dmux projects list · dmux init · dmux doctor · dmux demo --live · dmux watch · "
-            "dmux snapshot · dmux json · dmux sessions · dmux kill · dmux adapters"
+            "dmux snapshot · dmux json · dmux report · dmux timeline · dmux settings · dmux completions · "
+            "dmux sessions · dmux kill · dmux adapters"
         ),
     )
     result.add_argument(
@@ -56,7 +60,7 @@ def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.Ar
         type=Path, metavar="PLAN_DIR",
         help="Directory containing plan.json (default: project root, then monitor/); --queue is an alias",
     )
-    result.add_argument("--interval", type=float, default=2.0, help="Refresh seconds (default: 2)")
+    result.add_argument("--interval", type=float, default=None, help="Refresh seconds (default: settings or 2)")
     result.add_argument("--experiment", "--model", dest="model", metavar="TAG", help="Initially focus an experiment tag")
     result.add_argument("--stage", help="Initially inspect a stage instead of following the active one")
     modes = result.add_mutually_exclusive_group()
@@ -64,7 +68,7 @@ def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.Ar
     modes.add_argument("--json", action="store_true", help="Print one machine-readable snapshot")
     result.add_argument("--schema-version", type=int, choices=(1, 2), default=2,
                         help="JSON output schema (default: 2; 1 preserves legacy aliases)")
-    result.add_argument("--no-gpu", action="store_true", help="Skip nvidia-smi telemetry")
+    result.add_argument("--no-gpu", action="store_true", default=None, help="Skip nvidia-smi telemetry")
     result.add_argument("--tmux-socket", type=Path, help="Optional existing tmux socket path (-S)")
     result.add_argument(
         "--tmux-link",
@@ -82,7 +86,9 @@ def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.Ar
         default="auto",
         help="Override terminal color detection / NO_COLOR",
     )
-    result.add_argument("--version", action="version", version=f"dmux {__version__}")
+    result.add_argument("--version", action=VersionAction)
+    preferences.add_options(result, existing=('interval', 'gpu', 'tmux_socket'))
+    result.add_argument('--gpu', dest='no_gpu', action='store_false')
     return result
 
 
@@ -91,12 +97,15 @@ COMMANDS = {
     "home": "home", "add": "catalog", "remove": "catalog", "projects": "catalog",
     "init": "onboarding", "doctor": "diagnostics", "demo": "demo",
     "sessions": "sessions", "kill": "process_actions",
+    "settings": "settings",
+    "timeline": "observations",
+    "report": "comparison", "completions": "completions",
 }
 
 
 def command_parser(default_adapter="filesystem"):
     result = argparse.ArgumentParser(prog="dmux", description="Terminal experiment workspaces and monitoring")
-    result.add_argument("--version", action="version", version=f"dmux {__version__}")
+    result.add_argument("--version", action=VersionAction)
     commands = result.add_subparsers(dest="command", required=True)
     for name in ("watch", "snapshot", "json"):
         commands.add_parser(name, parents=[parser(default_adapter, add_help=False)],
@@ -111,16 +120,23 @@ def command_parser(default_adapter="filesystem"):
 def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return_home=False) -> None:
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv:
-        argv = ["home"]
+        try:
+            argv = [preferences.Settings().values['start_view']]
+        except (OSError, ValueError) as exc:
+            raise SystemExit(str(exc)) from exc
     elif argv[0].startswith("-") and argv[0] not in {"--help", "-h", "--version"}:
         argv.insert(0, "watch")  # Preserve documented scoped flags without a command.
     argument_parser = command_parser(default_adapter)
+    from .completions import complete
+    complete(argument_parser)
     args, extra = argument_parser.parse_known_args(argv)
     if args.command in COMMANDS:
         module = importlib.import_module("." + COMMANDS[args.command], __package__)
         forwarded = [args.command, *extra] if args.command in {"add", "remove"} else extra
         try:
             module.main(forwarded)
+        except (ValueError, OSError) as exc:
+            argument_parser.exit(2, str(exc) + '\n')
         except ImportError as exc:
             if exc.name not in {"psutil", "rich", "jsonschema"} and not (exc.name or "").startswith("rich."):
                 raise
@@ -133,6 +149,12 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         return
     args.once = args.once or args.command == "snapshot"
     args.json = args.json or args.command == "json"
+    try:
+        settings = preferences.from_args(args)
+    except (OSError, ValueError) as exc:
+        argument_parser.error(str(exc))
+    args.interval = settings.values['interval']
+    args.no_gpu = not settings.values['gpu']
     if args.once and args.json:
         argument_parser.error("snapshot/--once and json/--json are mutually exclusive")
     if not math.isfinite(args.interval) or args.interval < 0.25:
@@ -158,12 +180,13 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         no_color=False if args.color == "always" else True if args.color == "never" else None,
     )
     sampler = HostSampler()
+    observations = Observations(settings)
     monitor = Monitor(
         queue,
         project_root=args.project_root,
         results_dir=args.results_dir,
         adapter=adapter,
-        gpu=(lambda: {"devices": [], "error": "disabled"}) if args.no_gpu else sampler.gpu,
+        gpu=lambda: sampler.gpu() if settings.values['gpu'] else {"devices": [], "error": "disabled"},
         processes=lambda: sampler.processes(adapter),
     )
     try:
@@ -172,7 +195,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         argument_parser.error(str(exc))
     snapshot = monitor.snapshot()
     tmux_config = snapshot.get("tmux_config", {})
-    socket = args.tmux_socket or tmux_config.get("socket")
+    socket = args.tmux_socket or tmux_config.get("socket") or settings.values['tmux_socket']
     if socket and not Path(socket).is_absolute():
         socket = monitor.queue / socket
     navigator = TmuxNavigator(socket=socket, links={**tmux_config.get("links", {}), **links},
@@ -182,7 +205,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         data = monitor.snapshot()
         navigator.links = {**data.get("tmux_config", {}).get("links", {}), **links}
         data["tmux"] = navigator.snapshot(data["tasks"])
-        return data
+        return observations.observe(data)
 
     refresh = BackgroundRefresh(fresh_snapshot)
     snapshot["tmux"] = navigator.snapshot(snapshot["tasks"])
@@ -197,7 +220,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
         print(json.dumps(export_snapshot(snapshot, version=args.schema_version), indent=2, allow_nan=False))
         return
     if args.once or not console.is_terminal:
-        console.print(
+        console.print(Appearance(
             render_dashboard(
                 snapshot,
                 width=console.width,
@@ -207,12 +230,12 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                 expanded=True,
                 interactive=False,
                 presentation=adapter.presentation,
-            )
-        )
+            ), settings))
         return
 
     controller = DashboardController(snapshot, adapter, navigator, selected=args.model,
-                                     stage=args.stage, entry=_entry, return_home=_return_home)
+                                     stage=args.stage, entry=_entry, return_home=_return_home, settings=settings)
+    controller.snapshot = observations.observe(snapshot)
     try:
         while controller.running:
             navigate, previous_size = None, None
@@ -228,7 +251,19 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                             break
                     if controller.picker is not None:
                         redraw = controller.picker.poll() or redraw
-                    if time.monotonic() - controller.updated >= args.interval:
+                    if controller.comparison is not None:
+                        redraw = controller.comparison.poll() or redraw
+                        if not controller.comparison.worker.pending:
+                            controller.comparison.snapshot = controller.snapshot
+                    sampler.gpu_interval = monitor.gpu_interval = settings.values['gpu_interval']
+                    if controller.metric_reader.max_points != settings.values['metric_window']:
+                        controller.metric_reader.max_points = settings.values['metric_window']
+                        controller.metric_reader.clear()
+                    if controller.log_view:
+                        controller.log_view.limit = settings.values['log_tail']
+                    if controller.log_view and controller.log_view.follow:
+                        redraw = True
+                    if time.monotonic() - controller.updated >= settings.values['interval']:
                         refresh.request()
                         controller.updated = time.monotonic()
                     result = refresh.take()
@@ -243,11 +278,14 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                     if controller.running and navigate is None and (redraw or size != previous_size):
                         c = controller
                         view = (
-                            render_stop_confirmation(c.pending_stop, c.stop_confirmation, height=size.height)
+                            c.options.render(height=size.height) if c.options is not None
+                            else c.comparison.render(height=size.height) if c.comparison is not None
+                            else c.log_view.render(height=size.height) if c.log_view is not None
+                            else render_stop_confirmation(c.pending_stop, c.stop_confirmation, height=size.height)
                             if c.pending_stop is not None
                             else c.picker.render(height=size.height)
                             if c.picker is not None
-                            else render_help("detail" if c.detailed else "dashboard")
+                            else render_help("detail" if c.detailed else "dashboard", settings)
                             if c.help
                             else render_detail(c.snapshot, c.current_model(), presentation=adapter.presentation,
                                                stage=c.stage, height=size.height, width=size.width, notice=c.notice,
@@ -260,7 +298,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                                 presentation=adapter.presentation,
                             )
                         )
-                        live.update(view, refresh=True)
+                        live.update(Appearance(view, settings), refresh=True)
                         previous_size = size
                     if controller.running and navigate is None:
                         time.sleep(0.15)
@@ -272,6 +310,11 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                     controller.running = False
     except KeyboardInterrupt:
         pass
+    finally:
+        try:
+            settings.save()
+        except (OSError, ValueError) as exc:
+            console.print(f'Settings could not be saved: {exc}')
     console.print("Monitor closed.", style="grey70")
 
 

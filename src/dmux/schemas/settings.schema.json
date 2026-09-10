@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dmux user settings",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "interval": {
+      "type": "number",
+      "minimum": 0.25,
+      "maximum": 3600
+    },
+    "gpu": {
+      "type": "boolean"
+    },
+    "gpu_interval": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 3600
+    },
+    "theme": {
+      "oneOf": [
+        {
+          "enum": [
+            "cyan-dark",
+            "light",
+            "high-contrast",
+            "monochrome"
+          ]
+        },
+        {
+          "type": "object",
+          "required": [
+            "accent",
+            "ok",
+            "warning",
+            "error",
+            "muted",
+            "selected"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "accent": {
+              "type": "string",
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+            },
+            "ok": {
+              "type": "string",
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+            },
+            "warning": {
+              "type": "string",
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+            },
+            "error": {
+              "type": "string",
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+            },
+            "muted": {
+              "type": "string",
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+            },
+            "selected": {
+              "type": "string",
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+            }
+          }
+        }
+      ]
+    },
+    "box_style": {
+      "enum": [
+        "unicode",
+        "ascii"
+      ]
+    },
+    "key_style": {
+      "enum": [
+        "both",
+        "arrows",
+        "letters"
+      ]
+    },
+    "start_view": {
+      "enum": [
+        "home",
+        "watch"
+      ]
+    },
+    "log_tail": {
+      "type": "integer",
+      "minimum": 20,
+      "maximum": 2000
+    },
+    "metric_window": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 256
+    },
+    "clock": {
+      "enum": [
+        "UTC",
+        "local"
+      ]
+    },
+    "hide_completed_after": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 31536000
+    },
+    "notify_cmd": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096
+      }
+    },
+    "ai_cli": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096
+      }
+    },
+    "tmux_socket": {
+      "type": "string",
+      "maxLength": 4096
+    },
+    "banner": {
+      "type": "boolean"
+    },
+    "stall_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 31536000
+    },
+    "history": {
+      "type": "boolean"
+    }
+  }
+}

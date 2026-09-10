@@ -479,3 +479,29 @@ IDs, GPU queries, and tmux socket all belong to that host. Reconnect with SSH an
 reopen dmux to continue monitoring; closing the dashboard leaves experiments
 running. A local view of a mounted remote filesystem can show files, but it does
 not establish remote process liveness or provide remote stop controls.
+
+## Preferences, logs and comparisons
+
+Press `o` for live options, `l` for a bounded searchable log viewer, and `c`
+for explicitly configured result comparison. Preferences use CLI > `DMUX_*`
+environment > `settings.json` > defaults. Themes include cyan-dark, light,
+high-contrast and monochrome; ASCII boxes and a compact banner are available.
+See [settings](https://github.com/Mezosky/dmux/blob/main/docs/SETTINGS.md).
+
+```bash
+dmux settings set theme high-contrast
+dmux watch --stall-seconds 120 --history --project-root /work/project --plan-dir monitor
+dmux timeline
+dmux report --metric Loss --stage train --format csv --project-root /work/project --plan-dir monitor
+```
+
+Stalls are advisories, not process-liveness decisions. History and notification
+hooks are opt-in. Details attribute CPU/RSS and available GPU memory to matched
+local PIDs. Comparison best values cover the bounded recent window only.
+See [observability and report limits](https://github.com/Mezosky/dmux/blob/main/docs/OBSERVABILITY.md).
+
+The wheel includes `man dmux`. For Bash/Zsh completions, install the optional
+shell extra from this checkout (`python -m pip install '.[shell]'`) and add
+`eval "$(dmux completions bash)"` or `eval "$(dmux completions zsh)"` to your shell
+configuration. dmux only prints the completion setup; it never edits shell files.
+Homebrew/Nix packaging remains a follow-up after a PyPI release exists.
