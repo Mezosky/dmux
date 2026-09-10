@@ -251,7 +251,7 @@ class SessionBrowser:
                 parts.append(Text("Results: " + results, style="grey62", no_wrap=True, overflow="ellipsis"))
         if self.notice:
             parts.append(Text(self.notice, style="yellow", overflow="ellipsis", no_wrap=True))
-        parts.append(help_hint())
+        parts.append(help_hint("sessions"))
         return Panel(Group(*parts), border_style="grey35", box=box.ROUNDED)
 
 

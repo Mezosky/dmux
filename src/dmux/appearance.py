@@ -20,7 +20,7 @@ HOME_LOCKUP = (
 )
 
 
-def wordmark(settings=None, *, context='', compact=False, lockup=False):
+def wordmark(settings=None, *, context='', compact=False, lockup=True, tagline=True):
     from rich.text import Text
     values = settings.values if settings is not None else {'banner': True, 'box_style': 'unicode'}
     if compact or not values['banner']:
@@ -37,6 +37,9 @@ def wordmark(settings=None, *, context='', compact=False, lockup=False):
     else:
         text.append('█▀▄ █▀▄▀█ █ █ ▀▄▀\n', style='bold ' + ('#0891b2' if theme == 'cyan-dark' else palette['accent']))
         text.append('█▄▀ █ ▀ █ █▄█ ▄▀▄\n', style='bold ' + palette['accent'])
+    if not tagline:
+        text.rstrip()
+        return text
     text.append('your experiments, one terminal', style='cyan')
     if context:
         text.append(' / ' + context, style='grey70')

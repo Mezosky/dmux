@@ -88,7 +88,7 @@ class OptionsView:
             body.append(f'{">" if index == self.index else " "} {key:22} {value} [{self.settings.sources[key]}]\n',
                         style=target('option', key, 'bold cyan' if index == self.index else ''))
         body.append('\n')
-        body.append_text(help_hint())
+        body.append_text(help_hint("options"))
         body.append('\n')
         body.append('CLI and environment overrides remain authoritative.\n')
         body.append('Preferences never change experiments. Stops always require a typed label.')

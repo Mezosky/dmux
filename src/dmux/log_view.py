@@ -110,5 +110,5 @@ class LogView:
                            Text('\n'.join(body) or self.error or 'No matching lines', overflow='ellipsis', no_wrap=True),
                            Text('Search: ' + self.query + ('|' if self.searching else '')),
                            Text(status, style='grey62'),
-                           help_hint()),
+                           help_hint("log")),
                      title=heading, border_style='cyan')

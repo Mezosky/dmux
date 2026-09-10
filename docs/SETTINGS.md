@@ -67,9 +67,10 @@ dmux settings set theme '{"accent":"#22d3ee","ok":"#4ade80","warning":"#facc15",
 
 State names and warning text remain visible in every theme. `NO_COLOR` retains
 plain semantic text. ASCII mode affects decoration, not the user's log contents.
-Home uses the three-row horned-face lockup beside the DMUX wordmark. The
-demo launcher and interactive version output retain the small wordmark; help
-uses a compact DMUX heading to leave room for controls. No animation or startup delay is
+Home, the dashboard, the demo launcher, and interactive version output use
+the three-row horned-face DMUX lockup. Dashboard headers keep adapter, state,
+and clock beside it; help uses a compact DMUX heading to leave room for controls.
+The footer keeps just clickable Help, Options, and Back/Quit controls. No animation or startup delay is
 introduced. Compact terminals and `banner=false` use a short title. ASCII mode uses plain
 DMUX text. Mouse reporting is released on exit, suspend, and tmux handoff.
 

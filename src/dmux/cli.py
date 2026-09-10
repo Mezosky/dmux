@@ -230,7 +230,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                 stage=args.stage,
                 expanded=True,
                 interactive=False,
-                clock=settings.values['clock'],
+                clock=settings.values['clock'], settings=settings,
                 presentation=adapter.presentation,
             ), settings))
         return
@@ -304,7 +304,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                             else render_dashboard(
                                 c.visible_snapshot(), width=size.width, height=size.height,
                                 selected=c.current_model(), stage=c.stage, notice=c.notice,
-                                clock=settings.values['clock'],
+                                clock=settings.values['clock'], settings=settings,
                                 presentation=adapter.presentation,
                             )
                         )

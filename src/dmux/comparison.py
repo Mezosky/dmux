@@ -153,7 +153,7 @@ class ComparisonView:
                             for key in ('experiment', 'state', 'latest', 'window_best', 'samples', 'unit', 'warning')))
         return Panel(Group(table, Text(self.error or ('Loading bounded metrics…' if self.worker.pending else
                      'Recent-window best only; missing values remain unknown.')),
-                     help_hint()),
+                     help_hint("comparison")),
                      title=Text('DMUX / COMPARISON / ' + str(self.config.get('metric', 'not configured'))), border_style='cyan')
 
 

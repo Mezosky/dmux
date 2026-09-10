@@ -107,7 +107,7 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         footer.append(Text("! " + warning, style="yellow"))
     if notice:
         footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
-    navigation = help_hint()
+    navigation = help_hint("detail")
     footer.append(navigation)
 
     def remaining(extra=()):

@@ -67,6 +67,8 @@ def test_dashboard_log_uses_available_rows_at_42(demo_snapshot):
     monitor, snapshot = demo_snapshot
     snapshot["recent"] = ["epoch 3 completed", "checkpoint saved"]
     text = rendered(render_dashboard(snapshot, selected="tiny_llm", width=120, height=42), 120)
+    from dmux.appearance import HOME_LOCKUP
+    assert all(line in text for line in HOME_LOCKUP)
     assert "Recent activity" in text and "checkpoint saved" in text
     assert len(text.splitlines()) <= 42
 
@@ -92,11 +94,13 @@ def test_compact_dashboard_footer_does_not_wrap(demo_snapshot):
     _, snapshot = demo_snapshot
     text = rendered(render_dashboard(snapshot, width=80, height=42), 80)
     assert "? help" in text.splitlines()[-1]
-    assert text.splitlines()[-1].strip() == "? help"
+    assert "o options" in text.splitlines()[-1] and "q quit" in text.splitlines()[-1]
+    assert "k/K" not in text.splitlines()[-1]
     snapshot.update(models=[], experiments=[], hidden_count=4)
     text = rendered(render_dashboard(snapshot, width=80, height=42), 80)
     assert "Press u to restore" in text
-    assert text.splitlines()[-1].strip() == "? help"
+    assert "o options" in text.splitlines()[-1] and "q quit" in text.splitlines()[-1]
+    assert "k/K" not in text.splitlines()[-1]
 
 
 def test_gpu_disabled_is_distinct_from_failed(demo_snapshot):

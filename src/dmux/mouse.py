@@ -17,9 +17,19 @@ def target(kind, value, style=''):
     return Style.parse(style) + Style(meta={'dmux_action': (kind, value)})
 
 
-def help_hint():
+def help_hint(view='dashboard'):
+    """Three quiet, clickable essentials; the full binding list lives in help."""
     from rich.text import Text
-    return Text('? help', style=target('key', '?', 'grey70'), no_wrap=True)
+    text = Text(no_wrap=True, overflow='ellipsis')
+    text.append(' ? help ', style=target('key', '?', 'bold bright_cyan on grey15'))
+    if view != 'options':
+        text.append('  ·  ', style='grey35')
+        text.append(' o options ', style=target('key', 'o', 'cyan'))
+    text.append('  ·  ', style='grey35')
+    key = 'q' if view in ('dashboard', 'home') else '\x1b'
+    label = 'q quit' if view in ('dashboard', 'home') else 'Esc save & back' if view == 'options' else 'Esc back'
+    text.append(' ' + label + ' ', style=target('key', key, 'grey70'))
+    return text
 
 
 class MouseMap:

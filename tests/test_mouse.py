@@ -80,7 +80,7 @@ def test_hidden_and_previous_frame_regions_are_not_clickable():
 def test_dashboard_tabs_rows_stage_and_help_clicks(controller, monkeypatch):
     monkeypatch.setattr('dmux.controller.prepare_stop', lambda *a: pytest.fail('mouse opened stop'))
     screen, size, text = draw(render_dashboard(controller.snapshot, width=100, height=42))
-    assert text.splitlines()[-1] == '? help'
+    assert all(label in text.splitlines()[-1] for label in ('? help', 'o options', 'q quit'))
     controller.mouse(screen.action(MouseEvent(64, 5, 5), size))
     assert controller.current_model() == 'two' and controller.pending_stop is None
     controller.mouse(click(screen, size, ('experiment', 'two')))

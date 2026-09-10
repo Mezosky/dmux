@@ -147,6 +147,7 @@ def render_dashboard(
     expanded=False,
     interactive=True,
     clock='UTC',
+    settings=None,
     notice=None,
     presentation: Presentation | None = None,
 ):
@@ -174,7 +175,17 @@ def render_dashboard(
     title.append(f"  /  {presentation.name.upper()}", style="bold white")
     title.append(f'    ● {snapshot["state"].upper()}', style=color)
     title.append(f"    {now}", style="grey62")
-    parts: list[RenderableType] = [Panel(title, border_style="grey35", box=box.ROUNDED, padding=(0, 1))]
+    heading: Text | Table = title
+    if (width >= 80 and height >= 32 and
+            (settings is None or (settings.values['banner'] and settings.values['box_style'] != 'ascii'))):
+        from .appearance import wordmark
+        heading = Table.grid(padding=(0, 3))
+        heading.add_column(width=31)
+        heading.add_column(ratio=1)
+        context = Text('DMUX / ' + presentation.name.upper(), style='bold white', no_wrap=True, overflow='ellipsis')
+        status = Text(f'● {snapshot["state"].upper()}', style=color, no_wrap=True)
+        heading.add_row(wordmark(settings, tagline=False), Group(context, status, Text(now, style='grey62')))
+    parts: list[RenderableType] = [Panel(heading, border_style="grey35", box=box.ROUNDED, padding=(0, 1))]
     if "expected" not in snapshot:
         parts += [Text(snapshot["message"], style="yellow"), Text(snapshot["queue"], style="grey62")]
         return Group(*parts)
