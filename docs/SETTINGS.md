@@ -39,7 +39,7 @@ preference is saved. Merely opening dmux or reading settings writes nothing.
 | `start_view` | home | Bare `dmux` opens `home` or a local `watch` |
 | `log_tail` | 500 | Full log viewer window: 20–2000 lines, also capped at 256 KiB |
 | `metric_window` | 256 | Detail/comparison samples: 16–256 |
-| `clock` | local | Home timestamps and timeline use `local` or `UTC` |
+| `clock` | local | Dashboard/home timestamps and timeline use `local` or `UTC` |
 | `hide_completed_after` | 0 | Home hides a completed run after this many observed seconds; zero disables |
 | `notify_cmd` | [] | Explicit argv notification hook; disabled when empty |
 | `tmux_socket` | empty | Default socket when a command/plan supplies none |

@@ -144,6 +144,7 @@ def render_dashboard(
     stage=None,
     expanded=False,
     interactive=True,
+    clock='UTC',
     notice=None,
     presentation: Presentation | None = None,
 ):
@@ -165,7 +166,8 @@ def render_dashboard(
                 labels=labels, short_labels=tuple(label[:8] for label in labels.values()),
             )
     color = COLORS.get(snapshot["state"], "white")
-    now = datetime.fromtimestamp(snapshot["updated"], timezone.utc).strftime("%H:%M:%S UTC")
+    observed = datetime.fromtimestamp(snapshot['updated'], timezone.utc)
+    now = (observed if clock == 'UTC' else observed.astimezone()).strftime('%H:%M:%S %Z')
     title = Text("DMUX", style="bold bright_cyan")
     title.append(f"  /  {presentation.name.upper()}", style="bold white")
     title.append(f'    ● {snapshot["state"].upper()}', style=color)

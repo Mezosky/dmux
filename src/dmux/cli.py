@@ -229,6 +229,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                 stage=args.stage,
                 expanded=True,
                 interactive=False,
+                clock=settings.values['clock'],
                 presentation=adapter.presentation,
             ), settings))
         return
@@ -255,6 +256,10 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                         redraw = controller.comparison.poll() or redraw
                         if not controller.comparison.worker.pending:
                             controller.comparison.snapshot = controller.snapshot
+                            if controller.comparison.reader.max_points != settings.values['metric_window']:
+                                controller.comparison.reader.max_points = settings.values['metric_window']
+                                controller.comparison.reader.clear()
+                                controller.comparison.worker.request()
                     sampler.gpu_interval = monitor.gpu_interval = settings.values['gpu_interval']
                     if controller.metric_reader.max_points != settings.values['metric_window']:
                         controller.metric_reader.max_points = settings.values['metric_window']
@@ -295,6 +300,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                             else render_dashboard(
                                 c.visible_snapshot(), width=size.width, height=size.height,
                                 selected=c.current_model(), stage=c.stage, notice=c.notice,
+                                clock=settings.values['clock'],
                                 presentation=adapter.presentation,
                             )
                         )

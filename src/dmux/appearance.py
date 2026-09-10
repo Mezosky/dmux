@@ -80,10 +80,10 @@ class VersionAction(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         from ._version import __version__
-        from .settings import Settings
+        from .settings import from_args
         try:
             from rich.console import Console
-            settings = Settings()
+            settings = from_args(namespace)
             console = Console()
             if console.is_terminal:
                 console.print(Appearance(wordmark(settings, context='VERSION'), settings))

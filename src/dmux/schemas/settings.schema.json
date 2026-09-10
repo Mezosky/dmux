@@ -41,27 +41,27 @@
           "properties": {
             "accent": {
               "type": "string",
-              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z][a-z0-9_]*)$"
             },
             "ok": {
               "type": "string",
-              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z][a-z0-9_]*)$"
             },
             "warning": {
               "type": "string",
-              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z][a-z0-9_]*)$"
             },
             "error": {
               "type": "string",
-              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z][a-z0-9_]*)$"
             },
             "muted": {
               "type": "string",
-              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z][a-z0-9_]*)$"
             },
             "selected": {
               "type": "string",
-              "pattern": "^(#[0-9a-fA-F]{6}|[a-z_]+)$"
+              "pattern": "^(#[0-9a-fA-F]{6}|[a-z][a-z0-9_]*)$"
             }
           }
         }
