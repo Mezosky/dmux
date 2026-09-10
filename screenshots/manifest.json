@@ -1,0 +1,94 @@
+{
+  "commit": "e1d7fa3",
+  "date": "2026-09-10",
+  "images": [
+    {
+      "file": "screenshots/dmux-highlight.png",
+      "size": [
+        1920,
+        1671
+      ],
+      "sha256": "62970ceb04c29c4ff9eac0ad31faa3ceed4be89af6fce22b57446b5df5ebe421"
+    },
+    {
+      "file": "screenshots/experiment-details-live.png",
+      "size": [
+        2952,
+        2092
+      ],
+      "sha256": "2734b294ea74b20479609209e9adf75382c6239c003615547501fb1c65f2af3b"
+    },
+    {
+      "file": "screenshots/experiment-details-unconfigured.png",
+      "size": [
+        2952,
+        1308
+      ],
+      "sha256": "769c9bade32897b8e68fd40867312768d07f401f104634f80c32b7a9ace7351c"
+    },
+    {
+      "file": "screenshots/experiment-overview.png",
+      "size": [
+        2952,
+        1210
+      ],
+      "sha256": "bf7d9724a64f74198d5bc883cd24c1f59efb18682d7b6910cd9b755e6af6a913"
+    },
+    {
+      "file": "screenshots/global-home.png",
+      "size": [
+        2952,
+        1308
+      ],
+      "sha256": "924f8ee228c64a6f1ab4e99518c27dc1147b277bcdfc080c46354e430eb91539"
+    },
+    {
+      "file": "screenshots/live-progress.png",
+      "size": [
+        2952,
+        1406
+      ],
+      "sha256": "0ac02364cdc623b860d07e219bcab5e67825d40785b328b07e0747275a001b42"
+    },
+    {
+      "file": "screenshots/log-viewer.png",
+      "size": [
+        2952,
+        1650
+      ],
+      "sha256": "854250883f374fca5221d8dec4fd024dd8f926711aa94002a0a96afac08642fb"
+    },
+    {
+      "file": "screenshots/preferences.png",
+      "size": [
+        2952,
+        1454
+      ],
+      "sha256": "dd0a0547b53293fa337b65ce55d72344fea2ae89ef6223b7033cf5e16efae110"
+    },
+    {
+      "file": "screenshots/result-plots.png",
+      "size": [
+        2952,
+        1454
+      ],
+      "sha256": "9a59c48d5dc7696290cf315bf160e400b30e95bc8f648829c2b18eea52d8e4a7"
+    },
+    {
+      "file": "screenshots/run-comparison.png",
+      "size": [
+        2952,
+        720
+      ],
+      "sha256": "e1c3d1fc8275d2babab543ff13bc2338d3220cc55e88ea8198be30a3d19fcebc"
+    },
+    {
+      "file": "screenshots/tmux-session-browser.png",
+      "size": [
+        2952,
+        964
+      ],
+      "sha256": "2c56f8e8916acd8c92c387a2a1037365e6b317bca7fac23e06e376fe5976b6c2"
+    }
+  ]
+}

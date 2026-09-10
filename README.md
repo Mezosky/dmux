@@ -23,8 +23,8 @@ identities, and output locations come from your plan, not a bundled model roster
 
 ![Your experiments. One terminal. Real dmux demo captures showing the experiment overview and live result plots](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/dmux-highlight.png)
 
-These demo captures are from `659298d` (September 9, 2026), before the latest
-layout and label fixes. See [capture notes](https://github.com/Mezosky/dmux/blob/main/screenshots/README.md) for details.
+These demo captures are from `e1d7fa3` (September 10, 2026).
+See [capture notes](https://github.com/Mezosky/dmux/blob/main/screenshots/README.md) for details.
 
 Compare vision/text, language, tabular, and audio experiments in one overview.
 Use `n` / `p` to select a tab, then Enter to inspect it. The audio example has
@@ -104,7 +104,7 @@ opened experiment; `x` closes its recent tab without stopping jobs.
 
 This capture shows three running experiments with matched worker PIDs and one
 completed audio run. Enter inspects the selected experiment without starting it.
-After you open experiments, the `OPEN` strip provides shortcuts to recent details.
+The `OPEN` strip includes the recently opened Bigram LM experiment.
 
 The home screen compares stage states, never a combined percentage of unrelated
 epochs, predictions, and checkpoints. Missing projects remain visible as
@@ -159,19 +159,20 @@ dmux json --project-root /tmp/dmux-demo --plan-dir monitor
 
 ![Live bigram language-model training at 28 of 300 saved epochs, with worker PID and a linked tmux session](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/live-progress.png)
 
-- The top counter summarizes the whole plan. Here, `87 / 900` records are
+- The top counter summarizes the whole plan. Here, `84 / 900` records are
   saved across the numeric stages and `1/4` stages are complete.
 - The selected experiment and its current stage have separate progress displays.
   The selected Bigram LM stage has `28 / 300` saved epochs (`9.3%`); this
   measures saved work, not elapsed time or an ETA.
 - The active-process line shows the matched PID and its elapsed runtime. Press
   `t` to browse the linked tmux workspace, or Enter to inspect the experiment.
-- GPU sampling is disabled for this CPU demo. This older capture labels it
-  unavailable; current builds explicitly show that sampling is disabled.
+- GPU sampling is disabled for this CPU demo, as the header indicates.
   When enabled, GPU readings describe device-wide activity, not usage attributed
   to one experiment.
 
-Closing dmux leaves that process running; explicit stops require confirmation.
+These captures used `demo --live --keep-running`. Ordinary watch/home leaves
+processes running; closing the default live demo launcher cleans up its own
+workers and sessions.
 
 ### Connect existing experiment files
 
@@ -225,7 +226,7 @@ directory. Absolute task paths remain absolute. A plan can also declare separate
 `root` and `results_dir` settings for each named project; see
 [the project configuration](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md#multiple-projects).
 
-![Live experiment details at 38 of 300 epochs, with worker PID, loss and perplexity plots, demo metadata, and configured output previews](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-details-live.png)
+![Live experiment details at 30 of 300 epochs, with worker PID, loss and perplexity plots, demo metadata, and configured output previews](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-details-live.png)
 
 Enter opens this detail view. Use `[` / `]` to choose a stage and Esc to return
 to the overview. The running stage shows its PID, elapsed runtime, and process
@@ -256,10 +257,11 @@ by path and size.
 
 ### Small result plots, only when opened
 
-![Compact live experiment details showing loss and perplexity sparklines with latest values, visible ranges, and 46 recent samples](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/result-plots.png)
+![Compact live experiment details showing loss and perplexity sparklines with latest values, visible ranges, and 34 recent samples](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/result-plots.png)
 
-This separate live capture shows `43 / 300` saved epochs and bounded recent
-result samples. The compact view prioritizes results over metadata and previews.
+This separate live capture shows `34 / 300` saved epochs and 34 recent result
+samples. The compact view fits plots, resource readings, metadata and output
+filenames within the available terminal height.
 
 Use a task's optional `metrics` list to choose what interests you. For example,
 with JSONL records containing `step`, `loss`, and `accuracy`:
@@ -339,9 +341,9 @@ Press `t` from the dashboard or run `dmux sessions` directly. Use `/` to search,
 Tab to switch between sessions and windows, and Enter to open the selection.
 Project and result directories appear for workspaces created by dmux.
 
-![tmux session browser linking the zoo-tiny_llm session and its chat and experiment windows to tiny_llm, with separate project and results paths](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/tmux-session-browser.png)
+![tmux session browser linking the demo-tiny_llm session and its chat and experiment windows to tiny_llm, with separate project and results paths](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/tmux-session-browser.png)
 
-The selected `zoo-tiny_llm` session contains independent `chat` and `experiment`
+The selected `demo-tiny_llm` session contains independent `chat` and `experiment`
 windows and is linked to `tiny_llm`. Use the arrow keys or `j` / `k` to select a
 session; Tab lets you choose a specific window/pane before pressing Enter.
 The project and results paths show which workspace you are entering. Browsing
@@ -496,6 +498,26 @@ for explicitly configured result comparison. Preferences use CLI > `DMUX_*`
 environment > `settings.json` > defaults. Themes include cyan-dark, light,
 high-contrast and monochrome; ASCII boxes and a compact banner are available.
 See [settings](https://github.com/Mezosky/dmux/blob/main/docs/SETTINGS.md).
+
+<details>
+<summary>View options, log following, and run comparison</summary>
+
+Options show each preference's value and source, including theme, logo style,
+mouse support and refresh interval.
+
+![Options with cyan-dark theme, logo and mouse preferences, and CLI/default sources](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/preferences.png)
+
+The configured training log opens in follow mode with search and a bounded
+retained window.
+
+![Bigram LM training log in follow mode with a bounded 37-line window](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/log-viewer.png)
+
+Compare loss from two completed Bigram LM demos trained for 8 and 64 epochs.
+Latest and window-best values come from the captured samples.
+
+![Loss comparison between completed 8-epoch and 64-epoch Bigram LM runs](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/run-comparison.png)
+
+</details>
 
 ```bash
 dmux settings set theme high-contrast
