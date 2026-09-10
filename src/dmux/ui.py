@@ -177,14 +177,16 @@ def render_dashboard(
     title.append(f"    {now}", style="grey62")
     heading: Text | Table = title
     if (width >= 80 and height >= 32 and
-            (settings is None or (settings.values['banner'] and settings.values['box_style'] != 'ascii'))):
+            (settings is None or (settings.values['banner'] and settings.values['box_style'] != 'ascii'
+                                 and settings.values['logo_style'] != 'minimal'))):
         from .appearance import wordmark
+        logo = wordmark(settings, tagline=False)
         heading = Table.grid(padding=(0, 3))
-        heading.add_column(width=31)
+        heading.add_column(width=max(Text(line).cell_len for line in logo.plain.splitlines()))
         heading.add_column(ratio=1)
         context = Text('DMUX / ' + presentation.name.upper(), style='bold white', no_wrap=True, overflow='ellipsis')
         status = Text(f'● {snapshot["state"].upper()}', style=color, no_wrap=True)
-        heading.add_row(wordmark(settings, tagline=False), Group(context, status, Text(now, style='grey62')))
+        heading.add_row(logo, Group(context, status, Text(now, style='grey62')))
     parts: list[RenderableType] = [Panel(heading, border_style="grey35", box=box.ROUNDED, padding=(0, 1))]
     if "expected" not in snapshot:
         parts += [Text(snapshot["message"], style="yellow"), Text(snapshot["queue"], style="grey62")]

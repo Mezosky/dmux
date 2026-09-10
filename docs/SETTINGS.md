@@ -11,6 +11,7 @@ does not bypass or replace confirmation.
 dmux settings list
 dmux settings get theme
 dmux settings set theme high-contrast
+dmux settings set logo_style minimal
 dmux settings set box_style ascii
 dmux settings set banner false
 dmux settings reset theme
@@ -34,6 +35,7 @@ preference is saved. Merely opening dmux or reading settings writes nothing.
 | `gpu` | true | Enable host GPU queries |
 | `gpu_interval` | 5 | GPU cache interval, 1–3600 seconds |
 | `theme` | cyan-dark | Named palette or a six-token JSON object |
+| `logo_style` | full | `full` shows the horned lockup; `shadow` shows a pixel wordmark with a darker offset edge; `minimal` uses the original single-line DMUX title |
 | `box_style` | unicode | `ascii` substitutes terminal box/decorative glyphs |
 | `mouse` | true | Click tabs/rows/help/options and use the wheel; `--no-mouse` disables reporting |
 | `key_style` | both | `letters` or `arrows` changes the help labels; both inputs still work |
@@ -56,6 +58,13 @@ Watch/home accept runtime settings as kebab-case flags, such as `--theme light`,
 demo creation; selecting it never sends input to an existing chat or job.
 
 ## Themes and branding
+
+Press `o`, select `logo_style`, then click or use Enter/arrows to switch between
+`full`, `shadow`, and `minimal`. Shadow uses bright lettering with a darker
+offset edge, like a pixel-art sign. Minimal restores the single-line DMUX header and frees the
+logo rows for content. Close options to save; the current screen updates immediately.
+Watch/home also accept `--logo-style minimal`, or use `DMUX_LOGO_STYLE=minimal`.
+The existing `banner=false` preference continues to force the compact title.
 
 Built-in palettes are `cyan-dark`, `light`, `high-contrast`, and `monochrome`.
 Custom themes define exactly `accent`, `ok`, `warning`, `error`, `muted`, and

@@ -20,16 +20,52 @@ HOME_LOCKUP = (
 )
 
 
+def shadow_wordmark(accent, shadow):
+    """Pack a tiny pixel wordmark and its offset shadow into three text rows."""
+    from rich.text import Text
+    from rich.style import Style
+    letters = (
+        ('11110', '10001', '10001', '10001', '11110'),  # D
+        ('10001', '11011', '10101', '10001', '10001'),  # M
+        ('10001', '10001', '10001', '10001', '01110'),  # U
+        ('10001', '01010', '00100', '01010', '10001'),  # X
+    )
+    rows = ['0'.join(letter[y] for letter in letters) for y in range(5)]
+    width = len(rows[0]) + 1
+
+    def pixel(x, y):
+        if 0 <= y < 5 and 0 <= x < width - 1 and rows[y][x] == '1':
+            return accent
+        if 1 <= y <= 5 and 1 <= x < width and rows[y - 1][x - 1] == '1':
+            return shadow
+        return None
+
+    text = Text()
+    for y in range(0, 6, 2):
+        for x in range(width):
+            top, bottom = pixel(x, y), pixel(x, y + 1)
+            if top == bottom:
+                text.append('█' if top else ' ', style=Style(color=top))
+            elif top:
+                text.append('▀', style=Style(color=top, bgcolor=bottom))
+            else:
+                text.append('▄', style=Style(color=bottom))
+        text.append('\n')
+    return text
+
+
 def wordmark(settings=None, *, context='', compact=False, lockup=True, tagline=True):
     from rich.text import Text
     values = settings.values if settings is not None else {'banner': True, 'box_style': 'unicode'}
-    if compact or not values['banner']:
+    if compact or not values['banner'] or values.get('logo_style') == 'minimal':
         return Text('DMUX' + (' / ' + context if context else ''), style='bold bright_cyan')
     text = Text()
     theme = values.get('theme', 'cyan-dark')
     palette = theme if isinstance(theme, dict) else PALETTES[theme]
     if values['box_style'] == 'ascii':
         text.append('DMUX\n', style='bold bright_cyan')
+    elif values.get('logo_style') == 'shadow':
+        text.append_text(shadow_wordmark(palette['accent'], '#075466' if theme == 'cyan-dark' else palette['muted']))
     elif lockup:
         for index, line in enumerate(HOME_LOCKUP):
             color = '#0891b2' if theme == 'cyan-dark' and index == 0 else palette['accent']

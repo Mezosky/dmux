@@ -147,6 +147,19 @@ def test_home_lockup_and_fallbacks(tmp_path):
     assert wordmark(settings, lockup=True).plain.splitlines()[:3] == list(HOME_LOCKUP)
     assert max(Text(line).cell_len for line in HOME_LOCKUP) == 31
     assert '▀' not in wordmark(settings, lockup=True, compact=True).plain
+    options = OptionsView(settings)
+    options.mouse(('option', 'logo_style'))
+    assert settings.values['logo_style'] == 'shadow'
+    shadow = wordmark(settings, tagline=False)
+    assert len(shadow.plain.splitlines()) == 3
+    assert max(Text(line).cell_len for line in shadow.plain.splitlines()) == 24
+    assert any(span.style.bgcolor for span in shadow.spans)
+    options.mouse(('option', 'logo_style'))
+    assert not options.editing and settings.values['logo_style'] == 'minimal'
+    assert wordmark(settings, context='ALL EXPERIMENTS').plain == 'DMUX / ALL EXPERIMENTS'
+    options.key('q')
+    assert Settings(settings.path, environ={}).values['logo_style'] == 'minimal'
+    settings.set('logo_style', 'full')
     settings.set('box_style', 'ascii')
     assert '▀' not in wordmark(settings, lockup=True).plain
     settings.set('banner', False)

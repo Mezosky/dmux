@@ -4,6 +4,7 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "logo_style": {"enum": ["full", "shadow", "minimal"]},
     "mouse": {"type": "boolean"},
     "interval": {
       "type": "number",

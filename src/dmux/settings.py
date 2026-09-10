@@ -13,7 +13,7 @@ from .connectors import open_regular
 
 DEFAULTS = {
     'interval': 2.0, 'gpu': True, 'gpu_interval': 5.0,
-    'theme': 'cyan-dark', 'box_style': 'unicode', 'key_style': 'both',
+    'theme': 'cyan-dark', 'logo_style': 'full', 'box_style': 'unicode', 'key_style': 'both',
     'start_view': 'home', 'log_tail': 500, 'metric_window': 256,
     'clock': 'local', 'hide_completed_after': 0, 'notify_cmd': [],
     'tmux_socket': '', 'ai_cli': [], 'banner': True,

@@ -8,6 +8,7 @@ from .settings import DEFAULTS, parse_value
 from .terminal import UP, DOWN, LEFT, RIGHT
 
 CHOICES = {'theme': ['cyan-dark', 'light', 'high-contrast', 'monochrome'],
+           'logo_style': ['full', 'shadow', 'minimal'],
            'box_style': ['unicode', 'ascii'], 'key_style': ['both', 'arrows', 'letters'],
            'clock': ['local', 'UTC'], 'start_view': ['home', 'watch']}
 
