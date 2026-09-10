@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Mezosky/dmux/main/src/dmux/schemas/plan.schema.json",
+  "name": "Cluster sweep",
+  "project_root": "/work/project",
+  "results_dir": "outputs",
+  "tasks": [],
+  "task_templates": [{
+    "glob": "sweep/*",
+    "tag_prefix": "run",
+    "max_matches": 100,
+    "max_scan": 1000,
+    "task": {
+      "stage": "train",
+      "slurm": {"job_id_file": "job.id"},
+      "log": "output.log"
+    }
+  }]
+}

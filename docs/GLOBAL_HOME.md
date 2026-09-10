@@ -131,3 +131,13 @@ dmux json --project-root /work/vision
 For a self-contained tour: `dmux demo --live --register`. Add `--tmux` only if
 you want it to create per-experiment chat/worker sessions. Demos and tests remain
 tiny and dependency-free; tests isolate all user settings and tmux sockets.
+
+Register non-default adapters explicitly, for example `dmux add /work/project
+--adapter mlflow` or `--adapter slurm`. The catalog stores this choice and home
+passes it through to details. Re-registering without `--adapter` preserves the
+previous choice; older entries default to `filesystem`. Unavailable plugins
+leave their project visible without blocking healthy projects. Scheduler-active
+runs are identified separately from runs with observed local PIDs.
+
+`dmux home --json` emits the [versioned home report](SNAPSHOTS.md). Use
+`--schema-version 1` during migration if a consumer requires its original shape.

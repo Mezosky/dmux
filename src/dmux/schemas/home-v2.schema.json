@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Mezosky/dmux/main/src/dmux/schemas/home-v2.schema.json",
+  "title": "dmux global home v2",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "projects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "plan_dir": {
+            "type": "string"
+          },
+          "project_root": {
+            "type": "string"
+          },
+          "results_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "adapter": {
+            "type": "string"
+          },
+          "added": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "plan_dir",
+          "project_root"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "experiments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "project": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "plan_dir": {
+                "type": "string"
+              },
+              "project_root": {
+                "type": "string"
+              },
+              "results_dir": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "adapter": {
+                "type": "string"
+              },
+              "added": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "plan_dir",
+              "project_root"
+            ],
+            "additionalProperties": true
+          },
+          "experiment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "stages": {
+            "type": "string"
+          },
+          "pids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "updated": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "project",
+          "experiment",
+          "label",
+          "state",
+          "stages",
+          "pids",
+          "updated"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "warning": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "schema_version",
+    "projects",
+    "experiments",
+    "warning"
+  ],
+  "additionalProperties": false
+}

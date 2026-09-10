@@ -282,7 +282,7 @@ def test_cli_subcommands_keep_scoped_aliases_and_versions(tmp_path, capsys):
     (tmp_path / "plan.json").write_text(json.dumps({"tasks": []}))
     for args in (["json", "--queue"], ["--json", "--plan-dir"]):
         main([*args, str(tmp_path), "--no-gpu", "--tmux-socket", str(tmp_path / "absent.sock")])
-        assert json.loads(capsys.readouterr().out)["schema_version"] == 1
+        assert json.loads(capsys.readouterr().out)["schema_version"] == 2
     for args in (["--version"], ["watch", "--version"]):
         with pytest.raises(SystemExit) as error:
             main(args)

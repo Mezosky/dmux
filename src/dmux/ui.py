@@ -22,6 +22,9 @@ COLORS = {
     "pause requested": "yellow",
     "waiting": "grey70",
     "unknown": "yellow",
+    "scheduled": "yellow",
+    "scheduler running": "cyan",
+    "unavailable": "yellow",
 }
 
 
@@ -140,6 +143,7 @@ def render_dashboard(
     selected=None,
     stage=None,
     expanded=False,
+    interactive=True,
     notice=None,
     presentation: Presentation | None = None,
 ):
@@ -341,7 +345,8 @@ def render_dashboard(
     suffix = " · read-only"
     if width >= 120:
         suffix = " · read-only monitoring; stops require confirmation"
-    footer.append(Text(keys + suffix, style="grey58", no_wrap=True, overflow="ellipsis"))
+    if interactive:
+        footer.append(Text(keys + suffix, style="grey58", no_wrap=True, overflow="ellipsis"))
 
     if expanded or content_height(Group(*parts, *footer), width) + 3 <= height:
         steps = Table(box=None, expand=True, padding=(0, 1))

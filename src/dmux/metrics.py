@@ -30,8 +30,28 @@ def validate_metrics(metrics):
         for name in ("label", "path", "field"):
             if not isinstance(config.get(name), str) or not config[name]:
                 raise ValueError(f"metric.{name} must be a non-empty string")
-        if config.get("type", "jsonl") not in ("json", "jsonl", "csv", "whitespace"):
-            raise ValueError("metric.type must be json, jsonl, csv or whitespace")
+        if config.get("type", "jsonl") not in ("json", "jsonl", "csv", "whitespace", "sqlite"):
+            raise ValueError("metric.type must be json, jsonl, csv, whitespace or sqlite")
+        if config.get("type") == "sqlite":
+            from .sqlite_connector import identifier
+            identifier(config.get("table"))
+            identifier(config["field"])
+            for name in ("x_field", "null_if"):
+                if config.get(name):
+                    identifier(config[name])
+            order = config.get("order_by")
+            if not isinstance(order, list) or not 1 <= len(order) <= 4:
+                raise ValueError("SQLite metrics require 1–4 order_by column names (latest first)")
+            for name in order:
+                identifier(name)
+            where = config.get("where", {})
+            if not isinstance(where, Mapping) or len(where) > 16:
+                raise ValueError("SQLite metric.where must map at most 16 columns to scalar values")
+            for name, value in where.items():
+                identifier(name)
+                if (not isinstance(value, (str, int, float, bool, type(None)))
+                        or isinstance(value, float) and not math.isfinite(value)):
+                    raise ValueError("SQLite filters must be finite JSON scalars")
         if config.get("type") == "whitespace":
             columns = config.get("columns")
             if (not isinstance(columns, list) or not 1 <= len(columns) <= 32
@@ -169,14 +189,17 @@ class MetricReader:
 
     def read(self, directory, config):
         source = resolve_path(config["path"], directory)
-        data = self._source(source, config.get("type", "jsonl"), config.get("records_field", ""),
-                            config.get("columns", ()) if config.get("type") == "whitespace" else ())
+        data = (self._sqlite_source(source, config) if config.get("type") == "sqlite" else
+                self._source(source, config.get("type", "jsonl"), config.get("records_field", ""),
+                             config.get("columns", ()) if config.get("type") == "whitespace" else ()))
         points, ignored, seen = [], 0, set()
         x_field = config.get("x_field")
         scale = config.get("scale", 1)
         for row in data["records"]:
-            lookup = row.get if config.get("type") in {"csv", "whitespace"} else lambda key: field(row, key)
+            lookup = row.get if config.get("type") in {"csv", "whitespace", "sqlite"} else lambda key: field(row, key)
             y = number(lookup(config["field"]))
+            if config.get("type") == "sqlite" and config.get("null_if") and row.get(config["null_if"]) != 0:
+                y = None
             x = number(lookup(x_field)) if x_field else len(points)
             if y is None or x is None or not math.isfinite(y * scale):
                 ignored += 1
@@ -196,6 +219,33 @@ class MetricReader:
                 "best": (min(values) if goal == "min" else max(values)) if values and goal else None,
                 "low": min(values) if values else None, "high": max(values) if values else None,
                 "warnings": warnings, "limited": data["limited"], "error": data["error"]}
+
+    def _sqlite_source(self, source, config):
+        from .sqlite_connector import SQLiteReader, database_stamp
+
+        key = (source, "sqlite", json.dumps(config, sort_keys=True))
+        try:
+            stamp = database_stamp(source)
+            if key in self.cache and self.cache[key][0] == stamp:
+                self.cache.move_to_end(key)
+                return self.cache[key][1]
+            columns = [config["field"], *config["order_by"]]
+            columns += [config[name] for name in ("x_field", "null_if") if config.get(name)]
+            rows = SQLiteReader().read(source, table=config["table"], columns=columns,
+                                       where=config.get("where", {}), order_by=config["order_by"],
+                                       limit=self.max_points + 1)
+            if database_stamp(source) != stamp:
+                raise ValueError("SQLite database changed during the read; retry on refresh")
+            data = {"records": list(reversed(rows[:self.max_points])), "limited": len(rows) > self.max_points,
+                    "warnings": [], "error": None}
+            self.cache[key] = (stamp, data)
+            self.cache.move_to_end(key)
+            while len(self.cache) > 8:
+                self.cache.popitem(last=False)
+            return data
+        except (OSError, ValueError) as exc:
+            self.cache.pop(key, None)
+            return {"records": [], "limited": False, "warnings": [], "error": str(exc)}
 
 
 def sparkline(values, width=28):

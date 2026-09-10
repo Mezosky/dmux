@@ -14,6 +14,8 @@ from .adapters.base import resolve_path
 from .adapters.filesystem import FilesystemAdapter
 from .connectors import JsonCache, open_regular
 from .projects import project_paths
+from .registry import load_adapter
+from .templates import expand_templates
 
 
 class CatalogError(ValueError):
@@ -69,6 +71,8 @@ class ProjectCatalog:
                 for key in ("id", "name", "plan_dir", "project_root"):
                     if not isinstance(entry.get(key), str) or not entry[key]:
                         raise ValueError(f"registration requires {key}")
+                if not isinstance(entry.get("adapter", "filesystem"), str) or not entry.get("adapter", "filesystem"):
+                    raise ValueError("registration adapter must be a non-empty name")
                 for key in ("plan_dir", "project_root", "results_dir"):
                     if entry.get(key) is not None and (
                         not isinstance(entry[key], str) or not Path(entry[key]).is_absolute()
@@ -105,7 +109,7 @@ class ProjectCatalog:
         finally:
             os.close(descriptor)
 
-    def add(self, target, *, name=None, project_root=None, results_dir=None) -> dict:
+    def add(self, target, *, name=None, project_root=None, results_dir=None, adapter=None) -> dict:
         target = Path(target).expanduser().resolve()
         directory = target.parent if target.name == "plan.json" else FilesystemAdapter().default_queue(target)
         path = directory / "plan.json"
@@ -115,23 +119,25 @@ class ProjectCatalog:
         plan = cache.read(path)
         if not isinstance(plan, dict) or not isinstance(plan.get("tasks"), list) or cache.warnings:
             raise CatalogError("Plan must be readable JSON with a tasks list.")
-        FilesystemAdapter().configure(plan)
         fallback = target if target.is_dir() and target != directory else directory
         root = (Path(project_root).expanduser().resolve() if project_root else
                 resolve_path(plan.get("project_root", fallback), directory))
-        locations = project_paths(plan, root, results_dir)
         alias = name or re.sub(r"[^a-zA-Z0-9_.-]+", "-", root.name).strip("-") or "project"
         if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,79}", alias):
             raise CatalogError("Project name must be 1–80 letters, digits, dots, underscores or hyphens, starting with a letter/digit.")
         with self._locked():
             entries = self.read()
             existing = next((e for e in entries if e["plan_dir"] == str(directory)), None)
+            adapter_name = adapter if adapter is not None else existing.get("adapter", "filesystem") if existing else "filesystem"
+            effective_results = results_dir if results_dir is not None else existing.get("results_dir") if existing else None
+            locations = project_paths(plan, root, effective_results)
+            load_adapter(adapter_name).configure(expand_templates(plan, root, effective_results))
             if existing and name is None:
                 alias = existing["name"]
             if any(e["name"] == alias and e is not existing for e in entries):
                 raise CatalogError(f"Name {alias!r} is already registered; supply a different --name.")
             entry = {"id": existing["id"] if existing else uuid.uuid4().hex,
-                     "name": alias, "plan_dir": str(directory), "project_root": str(root),
+                     "name": alias, "plan_dir": str(directory), "project_root": str(root), "adapter": adapter_name,
                      "results_dir": str(locations[None].results) if results_dir is not None
                      else existing.get("results_dir") if existing else None}
             if existing:
@@ -164,6 +170,7 @@ def main(argv=None):
     add.add_argument("--name")
     add.add_argument("--project-root", type=Path)
     add.add_argument("--results-dir", type=Path)
+    add.add_argument("--adapter", help="Adapter name; defaults to filesystem or preserves an existing registration")
     remove = commands.add_parser("remove", help="Unregister only; never stop jobs or delete results")
     remove.add_argument("name")
     listing = commands.add_parser("list")
@@ -172,7 +179,8 @@ def main(argv=None):
     try:
         catalog = ProjectCatalog()
         if args.command == "add":
-            entry = catalog.add(args.path, name=args.name, project_root=args.project_root, results_dir=args.results_dir)
+            entry = catalog.add(args.path, name=args.name, project_root=args.project_root,
+                                results_dir=args.results_dir, adapter=args.adapter)
             print(f'Registered {entry["name"]}. Run dmux from anywhere to browse it.')
         elif args.command == "remove":
             entry = catalog.remove(args.name)

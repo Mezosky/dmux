@@ -300,3 +300,9 @@ an object or null, and `completed_tasks` must be an array. `completion.json` mus
 be an array of exit records. Each exit record requires an integer `returncode`
 (boolean values are rejected). Malformed records are ignored with a warning;
 valid neighboring records remain usable. Missing files are allowed.
+
+`task_templates` supports bounded expansion over configured run directories;
+see [sweeps](SWEEPS.md). Template task fields use the same connector schemas,
+with directory and experiment identity supplied by expansion. The `sqlite`
+metric source uses explicit table/column/filter/order configuration; see
+[tracker databases](TRACKERS.md#read-only-sqlite-mode).

@@ -176,6 +176,13 @@
           }
         }
       }
+    },
+    "task_templates": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "$ref": "#/$defs/task_template"
+      }
     }
   },
   "required": [
@@ -523,7 +530,8 @@
             "json",
             "jsonl",
             "csv",
-            "whitespace"
+            "whitespace",
+            "sqlite"
           ]
         },
         "goal": {
@@ -551,6 +559,39 @@
             "type": "string",
             "minLength": 1
           }
+        },
+        "table": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z_0-9]*$"
+        },
+        "null_if": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z_0-9]*$"
+        },
+        "order_by": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z_0-9]*$"
+          }
+        },
+        "where": {
+          "type": "object",
+          "maxProperties": 16,
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z_0-9]*$"
+          },
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean",
+              "null"
+            ]
+          }
         }
       },
       "required": [
@@ -575,8 +616,167 @@
               "columns"
             ]
           }
+        },
+        {
+          "if": {
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "const": "sqlite"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "table",
+              "order_by"
+            ]
+          }
         }
       ]
+    },
+    "template_task": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage": {
+          "type": "string",
+          "minLength": 1
+        },
+        "label": {
+          "type": "string"
+        },
+        "log": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "string"
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tmux_session": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "expected": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "process": {
+          "$ref": "#/$defs/process"
+        },
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/progress"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "completion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/completion"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metrics": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/metric"
+          }
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "directory"
+            ]
+          },
+          {
+            "required": [
+              "experiment"
+            ]
+          },
+          {
+            "required": [
+              "model"
+            ]
+          },
+          {
+            "required": [
+              "run"
+            ]
+          },
+          {
+            "required": [
+              "group"
+            ]
+          }
+        ]
+      }
+    },
+    "task_template": {
+      "type": "object",
+      "properties": {
+        "glob": {
+          "type": "string",
+          "minLength": 1
+        },
+        "tag_prefix": {
+          "type": "string",
+          "minLength": 1
+        },
+        "max_matches": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "max_scan": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "task": {
+          "$ref": "#/$defs/template_task"
+        }
+      },
+      "required": [
+        "glob",
+        "task"
+      ],
+      "additionalProperties": false
     }
   }
 }

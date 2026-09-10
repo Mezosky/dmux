@@ -4,7 +4,7 @@
 
 # dmux
 
-`dmux` is a terminal workspace and monitor for machine-learning experiments.
+`dmux` is a CLI and terminal workspace for observing machine-learning experiments.
 It connects to files and processes an experiment already produces; it does not
 require the training code to import dmux, and closing the dashboard leaves jobs
 running.
@@ -12,6 +12,11 @@ running.
 The interface combines visual experiment tabs, a pipeline overview, exact
 stage counters, responsive detail panels, resource telemetry, recent logs, and
 optional tmux workspaces for experiments and AI CLI chats.
+
+Use it alongside your training tools and coding agents: `dmux json` and
+`dmux home --json` expose read-only state for scripts, while adapter entry points
+support custom result layouts. Bounded sweep templates follow groups of runs;
+the SLURM adapter reads selected cluster jobs with dmux launched over SSH.
 
 The core is framework- and benchmark-independent. Experiments, stages, record
 identities, and output locations come from your plan, not a bundled model roster.
@@ -36,8 +41,21 @@ saved-count percentage.
 ## Install
 
 ```bash
+# From a checkout of https://github.com/Mezosky/dmux:
+pipx install .
+# Or install into your active virtual environment:
 python -m pip install .
 ```
+
+The PyPI name `dmux` currently belongs to a different project. Install this
+checkout; `pipx install dmux` would install that other tool. The console command
+for this project remains `dmux`. The prepared distribution is named `dmux-ml`;
+it has not been published to PyPI yet.
+
+When upgrading an older checkout installed as distribution `dmux`, uninstall
+that older local distribution in the same environment before installing this
+checkout as `dmux-ml`. Both expose the same Python package and command, so they
+must not be installed together. See [release and upgrade notes](https://github.com/Mezosky/dmux/blob/main/docs/RELEASING.md).
 
 Supported platforms are Linux and macOS with Python 3.11 or newer. Windows is
 unsupported: terminal handling and catalog locks require `termios` and `fcntl`.
@@ -181,8 +199,8 @@ The declarative [`plan.json` schema](https://github.com/Mezosky/dmux/blob/main/d
 All relative task paths resolve against an explicit `--project-root` or the
 `project_root` declared by the plan—not dmux's installation directory.
 The generic `filesystem` adapter is the default for both the CLI and Python API.
-It is the only built-in adapter. The separately packaged `dmux_mlflow` integration
-ships in the same wheel and loads through entry points; other optional adapters
+It is the only built-in adapter. The separate `dmux_mlflow` and `dmux_slurm` packages
+ship in the same wheel and load through entry points; other optional adapters
 can interpret custom formats. See the [plan configuration guide](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md) to connect an existing project.
 
 ## Point a project at its outputs
@@ -258,8 +276,8 @@ cached windows and never change completion counts. See the
 
 ### Existing MLflow and W&B runs
 
-The optional `mlflow` adapter reads explicitly selected local file-store runs
-without importing an SDK. It interprets reported status and selected params/tags;
+The optional `mlflow` adapter reads explicitly selected SQLite or legacy
+file-store runs without importing an SDK. It interprets reported status and selected params/tags;
 result plots remain lazy and process liveness still requires a real PID match.
 
 ```bash
@@ -274,6 +292,24 @@ W&B binary history and tracking-server access are not implemented yet.
 For a real MLflow demo, install `python -m pip install -e '.[mlflow]'` and run
 `python examples/run_mlflow_demo.py`. It logs a tiny linear model's MSE and
 prints the command to open its fresh run in a second terminal.
+
+### Sweeps and cluster jobs
+
+Use `task_templates` to expand a configured directory glob such as `sweep/*`.
+Each matched run receives a stable experiment tag and the same configured
+connectors; scan and match limits fail visibly if exceeded. See the
+[sweep guide](https://github.com/Mezosky/dmux/blob/main/docs/SWEEPS.md).
+
+For SLURM, configure exact job IDs or per-run `job.id` files, then launch dmux
+on the cluster through SSH:
+
+```bash
+ssh -t user@login.cluster 'dmux watch --adapter slurm --project-root /work/project --plan-dir monitor --no-gpu'
+```
+
+Scheduler reports stay separate from observed local PIDs. dmux never submits or
+cancels SLURM jobs. The [cluster guide](https://github.com/Mezosky/dmux/blob/main/docs/SLURM.md)
+covers templates, global registration, accounting limits and command failures.
 
 <details>
 <summary>What if output previews are not configured?</summary>
@@ -362,6 +398,11 @@ my_lab = "my_lab.dmux_adapter:MyLabAdapter"
 
 The separation is deliberate: connectors read bytes, adapters interpret them,
 the monitor aggregates snapshots, and the UI renders those snapshots.
+See the [adapter contract](https://github.com/Mezosky/dmux/blob/main/docs/ADAPTERS.md)
+for optional batched observation hooks. For scripts and agents, prefer the
+[versioned JSON contract](https://github.com/Mezosky/dmux/blob/main/docs/SNAPSHOTS.md)
+over internal dashboard dictionaries. Version 2 is the CLI default in 0.2;
+`--schema-version 1` retains the old aliases during migration.
 See [AGENTS.md](https://github.com/Mezosky/dmux/blob/main/AGENTS.md) before changing integrity or navigation behavior.
 
 ## Development

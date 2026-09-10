@@ -20,6 +20,7 @@ from .refresh import BackgroundRefresh
 from .terminal import keyboard
 from .tmux import TmuxNavigator, parse_links
 from .ui import render_dashboard
+from .snapshots import export_snapshot
 
 
 def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.ArgumentParser:
@@ -61,6 +62,8 @@ def parser(default_adapter: str = "filesystem", *, add_help=True) -> argparse.Ar
     modes = result.add_mutually_exclusive_group()
     modes.add_argument("--once", action="store_true", help="Print one expanded dashboard and exit")
     modes.add_argument("--json", action="store_true", help="Print one machine-readable snapshot")
+    result.add_argument("--schema-version", type=int, choices=(1, 2), default=2,
+                        help="JSON output schema (default: 2; 1 preserves legacy aliases)")
     result.add_argument("--no-gpu", action="store_true", help="Skip nvidia-smi telemetry")
     result.add_argument("--tmux-socket", type=Path, help="Optional existing tmux socket path (-S)")
     result.add_argument(
@@ -191,7 +194,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
     if tags and set(links) - {"*", *tags}:
         argument_parser.error("Unknown --tmux-link tag; use a plan tag or *")
     if args.json:
-        print(json.dumps(snapshot, indent=2, allow_nan=False))
+        print(json.dumps(export_snapshot(snapshot, version=args.schema_version), indent=2, allow_nan=False))
         return
     if args.once or not console.is_terminal:
         console.print(
@@ -202,6 +205,7 @@ def main(argv=None, *, default_adapter: str = "filesystem", _entry=None, _return
                 selected=args.model,
                 stage=args.stage,
                 expanded=True,
+                interactive=False,
                 presentation=adapter.presentation,
             )
         )

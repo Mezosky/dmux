@@ -5,12 +5,13 @@ from collections import Counter
 import json
 import time
 
-from .adapters.filesystem import FilesystemAdapter
+from .registry import load_adapter
 from .catalog import ProjectCatalog, CatalogError, atomic_json, user_directory
 from .monitor import Monitor
 from .connectors import open_regular
 from .system import HostSampler
 from .bindings import action_key, render_help
+from .snapshots import export_home
 
 
 def run_state(tasks):
@@ -20,13 +21,16 @@ def run_state(tasks):
         return "running"
     if tasks and all(t["state"] == "complete" for t in tasks):
         return "complete"
+    for state in ("scheduler running", "scheduled", "unavailable"):
+        if any(t["state"] == state for t in tasks):
+            return state
     if any(t["state"] in {"partial", "interrupted"} for t in tasks):
         return "interrupted"
     return "idle"
 
 
 class Home:
-    def __init__(self, catalog=None, *, sampler=None, clock=time.monotonic):
+    def __init__(self, catalog=None, *, sampler=None, clock=time.monotonic, background=False):
         self.catalog = catalog or ProjectCatalog()
         self.sampler = sampler or HostSampler()
         self.clock = clock
@@ -38,6 +42,7 @@ class Home:
         self.cursor = 0
         self.opened = []
         self.catalog_error = None
+        self.background = background
 
     def refresh(self, *, force=False):
         now = self.clock()
@@ -46,11 +51,7 @@ class Home:
                 entries = self.catalog.read()
                 for entry in entries:
                     if entry not in self.entries:
-                        adapter = FilesystemAdapter()
-                        monitor = Monitor(entry["plan_dir"], project_root=entry["project_root"],
-                            results_dir=entry.get("results_dir"), adapter=adapter,
-                            processes=lambda a=adapter: self.sampler.processes(a), gpu=self.sampler.gpu)
-                        self.monitors[entry["id"]] = monitor
+                        self.monitors.pop(entry["id"], None)
                         self.due[entry["id"]] = -float("inf")
                 live_ids = {e["id"] for e in entries}
                 for mapping in (self.monitors, self.snapshots, self.due):
@@ -73,10 +74,17 @@ class Home:
             if not force and now < self.due.get(key, 0):
                 continue
             try:
+                if key not in self.monitors:
+                    adapter = load_adapter(entry.get("adapter", "filesystem"))
+                    if configure := getattr(adapter, "configure_observation", None):
+                        configure(background=self.background)
+                    self.monitors[key] = Monitor(entry["plan_dir"], project_root=entry["project_root"],
+                        results_dir=entry.get("results_dir"), adapter=adapter,
+                        processes=lambda a=adapter: self.sampler.processes(a), gpu=self.sampler.gpu)
                 snapshot = self.monitors[key].snapshot()
                 if snapshot["state"] == "waiting":
                     snapshot = {**snapshot, "state": "unavailable"}
-            except (OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            except Exception as exc:
                 snapshot = {"state": "unavailable", "message": str(exc), "tasks": [], "experiments": []}
             self.snapshots[key] = snapshot
             self.due[key] = now + (30 if snapshot["state"] == "complete" else 2)
@@ -101,14 +109,15 @@ class Home:
                     "stages": f'{run["completed_stages"]}/{run["stages"]}',
                     "pids": sorted({p["pid"] for t in tasks for p in t.get("processes", [])}),
                     "updated": snapshot.get("updated")})
-        priority = {"needs attention": 0, "running": 1, "interrupted": 2, "unavailable": 3, "invalid": 3, "idle": 4, "complete": 5}
+        priority = {"needs attention": 0, "running": 1, "scheduler running": 1, "scheduled": 2,
+                    "interrupted": 2, "unavailable": 3, "invalid": 3, "idle": 4, "complete": 5}
         rows.sort(key=lambda row: (row["project"]["name"].casefold(), priority.get(row["state"], 4), row["label"]))
         return rows
 
     def visible(self):
         return [r for r in self.rows() if
             self.query.casefold() in (r["project"]["name"] + " " + r["label"] + " " + (r["experiment"] or "")).casefold()
-            and (self.filter == "all" or self.filter == "running" and r["pids"] or
+            and (self.filter == "all" or self.filter == "running" and (r["pids"] or r["state"] == "scheduler running") or
                  self.filter == "attention" and r["state"] in {"needs attention", "unavailable", "invalid", "interrupted"})]
 
     def current(self):
@@ -132,8 +141,10 @@ class Home:
         all_rows = self.rows()
         counts = Counter(r["state"] for r in all_rows)
         running = sum(bool(r["pids"]) for r in all_rows)
+        scheduled = counts["scheduler running"] + counts["scheduled"]
+        scheduler_text = f" · {scheduled} scheduler active" if scheduled else ""
         parts = [Text("DMUX / ALL EXPERIMENTS", style="bold bright_cyan"),
-            Text(f'{len(self.entries)} {"project" if len(self.entries) == 1 else "projects"} · {running} running · {counts["needs attention"]} need attention · {counts["complete"]} complete', style="grey74"),
+            Text(f'{len(self.entries)} {"project" if len(self.entries) == 1 else "projects"} · {running} running{scheduler_text} · {counts["needs attention"]} need attention · {counts["complete"]} complete', style="grey74"),
             Text(f'Filter: {self.filter}   Search: {self.query}' + ("▏" if searching else ""), style="cyan")]
         opened_rows = {r["id"]: r for r in self.rows()}
         tabs = Text("OPEN  ", style="grey62", overflow="ellipsis", no_wrap=True)
@@ -184,10 +195,12 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="dmux home", description=__doc__)
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--schema-version", type=int, choices=(1, 2), default=2)
     parser.add_argument("--no-gpu", action="store_true")
     args = parser.parse_args(argv)
     console = Console(highlight=False)
-    home = Home(sampler=HostSampler(background=console.is_terminal and not (args.once or args.json)))
+    background = console.is_terminal and not (args.once or args.json)
+    home = Home(sampler=HostSampler(background=background), background=background)
     if args.no_gpu:
         home.sampler.gpu = lambda: {"devices": [], "error": "disabled"}
     state_path = user_directory("state") / "home.json"
@@ -203,7 +216,8 @@ def main(argv=None):
             pass
     home.refresh(force=args.once or args.json or not console.is_terminal)
     if args.json:
-        print(json.dumps({"projects": home.entries, "experiments": home.rows(), "warning": home.notice}, indent=2))
+        print(json.dumps(export_home(home.entries, home.rows(), home.notice, version=args.schema_version),
+                         indent=2, allow_nan=False))
         if home.catalog_error:
             raise SystemExit(2)
         return
@@ -284,7 +298,8 @@ def main(argv=None):
                 entry = row["project"]
                 from .cli import main as watch
 
-                flags = ["watch", "--plan-dir", entry["plan_dir"], "--project-root", entry["project_root"]]
+                flags = ["watch", "--plan-dir", entry["plan_dir"], "--project-root", entry["project_root"],
+                         "--adapter", entry.get("adapter", "filesystem")]
                 if entry.get("results_dir"):
                     flags += ["--results-dir", entry["results_dir"]]
                 if row["experiment"]:

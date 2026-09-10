@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "dmux"
+name = "dmux-ml"
 dynamic = ["version"]
 description = "Terminal workspaces and monitoring for machine-learning experiments"
 readme = "README.md"
@@ -49,6 +49,7 @@ dmux = "dmux.cli:main"
 
 [project.entry-points."dmux.adapters"]
 mlflow = "dmux_mlflow:MLflowAdapter"
+slurm = "dmux_slurm:SlurmAdapter"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -71,7 +72,7 @@ select = ["E4", "E7", "E9", "F"]
 
 [tool.mypy]
 python_version = "3.11"
-files = ["src/dmux", "src/dmux_mlflow"]
+files = ["src/dmux", "src/dmux_mlflow", "src/dmux_slurm"]
 ignore_missing_imports = true
 check_untyped_defs = false
 warn_unused_ignores = true

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Mezosky/dmux/main/src/dmux/schemas/plan.schema.json",
+  "name": "Training sweep",
+  "project_root": "/work/project",
+  "results_dir": "outputs",
+  "unit": "records",
+  "tasks": [],
+  "task_templates": [{
+    "glob": "sweep/*",
+    "tag_prefix": "run",
+    "max_matches": 100,
+    "max_scan": 1000,
+    "task": {
+      "stage": "train",
+      "progress": {"type": "json", "path": "progress.json", "current_field": "completed", "total_field": "total"},
+      "log": "output.log",
+      "process": {"script": "train.py", "output_flag": "--run-dir"}
+    }
+  }]
+}

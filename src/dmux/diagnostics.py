@@ -15,6 +15,7 @@ from .monitor import Monitor
 from .projects import project_paths
 from .plan_schema import validate_plan_schema
 from .registry import load_adapter
+from .templates import expand_templates
 
 
 def diagnose(plan_dir, *, project_root=None, results_dir=None, processes=None, adapter_name="filesystem") -> dict:
@@ -51,8 +52,11 @@ def diagnose(plan_dir, *, project_root=None, results_dir=None, processes=None, a
     try:
         validate_plan_schema(plan)
         adapter = load_adapter(adapter_name)
-        adapter.configure(plan)
+        if configure := getattr(adapter, "configure_observation", None):
+            configure(external_tools=False)
         effective_root = root if project_root else resolve_path(plan.get("project_root", root), directory)
+        plan = expand_templates(plan, effective_root, results_dir)
+        adapter.configure(plan)
         locations = project_paths(plan, effective_root, results_dir)
         # Refuse special files before any connector can block on a pipe/device.
         sources = {directory / "status.json", directory / "completion.json"}

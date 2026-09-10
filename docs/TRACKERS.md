@@ -1,4 +1,4 @@
-# Local MLflow and W&B files
+# Local MLflow databases and W&B files
 
 dmux observes files already produced by a tracker. Select individual run
 directories in a plan; it does not discover runs by scanning a tracking store,
@@ -68,7 +68,7 @@ Do not assume a particular offline run materializes every JSON file or a
 them from `run-*.wandb`. This is a conditional filesystem recipe, not W&B binary
 history support. Exported JSONL/CSV histories can use the ordinary metric reader.
 
-## MLflow file-store adapter
+## MLflow adapter
 
 The tiny `dmux_mlflow` package ships alongside the core and is registered through
 the `dmux.adapters` entry-point group. Only explicit adapter selection loads it.
@@ -93,7 +93,8 @@ the numeric status in `meta.yaml` and displays only explicitly requested
 `artifact_uri` or infer log filenames. Use normal `outputs`, `metrics`, and
 `log` settings to select what you want to inspect.
 
-The compatibility target is [MLflow 3.3.2's file store](https://github.com/mlflow/mlflow/blob/v3.3.2/mlflow/store/tracking/file_store.py)
+File-store layouts are tested against MLflow 3.3.2 and 3.16.0. The baseline is
+[MLflow 3.3.2's file store](https://github.com/mlflow/mlflow/blob/v3.3.2/mlflow/store/tracking/file_store.py)
 and its [run-status enum](https://github.com/mlflow/mlflow/blob/v3.3.2/mlflow/protos/service.proto).
 Only a flat metadata mapping with plain keys and an integer `status` from 1 to 5
 is supported. Other YAML representations, duplicate status keys, unreadable
@@ -158,9 +159,37 @@ it. CI tests 3.3.2 on Ubuntu/Python 3.11 and the current supported SDK on
 Ubuntu/Python 3.13. All jobs exercise tiny hand-written fixtures, and the other
 jobs run without a tracker SDK.
 
-This increment supports scoped watch/snapshot/json and doctor. Global-home
-registration currently uses the filesystem adapter; it does not preserve MLflow
-adapter selection. Use the explicit commands above for MLflow status handling.
+Register the plan with its adapter so global home and details use the same state
+rules: `dmux add /work/project --adapter mlflow`. Repeating this command upgrades
+an existing registration while preserving its ID. Re-registering without
+`--adapter` preserves the selected adapter; old registrations default to
+`filesystem`. A missing plugin leaves its project visibly unavailable.
+
+## Read-only SQLite mode
+
+For database-backed MLflow runs, use the
+[SQLite example](../examples/mlflow-sqlite-plan.json). Set each task's
+`mlflow.database` to a local database path and `mlflow.run_id` to an explicit run
+ID. Database and metric paths resolve relative to the task directory. The task
+directory remains the explicit location for process matching and output files;
+dmux does not follow an `artifact_uri` or guess which process owns a database.
+
+The adapter reads only the selected run, params, and tags. Metrics are bounded
+SELECTs against the chosen run/key only when details are opened. The core SQLite
+source has no MLflow table meanings. It accepts a table, literal column names,
+scalar equality filters, and descending `order_by` columns, then displays the
+latest window in ascending sample order. `null_if: "is_nan"` preserves MLflow's
+missing-value flag as a visible excluded point. Counts and liveness remain
+independent of metrics.
+
+Connections use `mode=ro`, query-only mode, fixed parameterized SELECTs, a
+257-row/256-KiB result cap, a 100,000-instruction budget, a 100-ms query budget,
+and a 20-ms lock timeout. Missing files are never created. Missing indexes or
+incompatible schemas produce errors, not an unbounded scan or a migration.
+WAL-mode databases are currently rejected before opening SQLite, rather than
+silently ignoring uncheckpointed data or creating coordination sidecars. Use a
+consistent rollback-journal snapshot for WAL-backed stores; dmux never changes
+the producer's journal mode or performs recovery/checkpointing.
 
 W&B binary history/SDK support and MLflow tracking-server access are future
 increments. There is no `wandb` adapter or SDK extra yet. Those modes need their

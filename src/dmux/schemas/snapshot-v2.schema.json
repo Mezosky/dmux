@@ -1,0 +1,346 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/Mezosky/dmux/main/src/dmux/schemas/snapshot-v2.schema.json",
+  "title": "dmux scoped snapshot v2",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": 2
+    },
+    "state": {
+      "type": "string"
+    },
+    "adapter": {
+      "type": "string"
+    },
+    "presentation": {
+      "type": "object"
+    },
+    "plan_dir": {
+      "type": "string"
+    },
+    "project_root": {
+      "type": "string"
+    },
+    "results_dir": {
+      "type": "string"
+    },
+    "projects": {
+      "type": "object"
+    },
+    "tmux_config": {
+      "type": "object"
+    },
+    "tmux": {
+      "type": "object"
+    },
+    "updated": {
+      "type": "number"
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/task"
+      }
+    },
+    "experiments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tag": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expected": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "counted": {
+            "type": "boolean"
+          },
+          "saved": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed_stages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "stages": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "tag",
+          "label",
+          "model_id",
+          "blocked",
+          "reason",
+          "expected",
+          "counted",
+          "saved",
+          "completed_stages",
+          "stages"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "active": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/task"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "queue_pid": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "expected": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    },
+    "saved": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completed_stages": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total_stages": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "valid": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "excluded": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "gpu": {
+      "type": "object"
+    },
+    "disk_free_gib": {
+      "type": "number"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recent": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "state",
+    "adapter",
+    "presentation",
+    "plan_dir",
+    "project_root",
+    "updated",
+    "tasks",
+    "experiments",
+    "warnings"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "task": {
+      "type": "object",
+      "properties": {
+        "experiment": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string"
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "project_root": {
+          "type": "string"
+        },
+        "results_dir": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "expected": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "counted": {
+          "type": "boolean"
+        },
+        "progress": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "detail": {
+          "type": "string"
+        },
+        "pid": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "process_started": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "process_command": {
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "processes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pid": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "started": {
+                "type": "number"
+              },
+              "command": {
+                "type": [
+                  "array",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "pid",
+              "started",
+              "command"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "elapsed_seconds": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "directory": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "type": "object"
+        },
+        "outputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "scheduler": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "log": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "experiment",
+        "stage",
+        "project",
+        "project_root",
+        "results_dir",
+        "label",
+        "state",
+        "expected",
+        "counted",
+        "progress",
+        "detail",
+        "pid",
+        "process_started",
+        "process_command",
+        "processes",
+        "elapsed_seconds",
+        "directory",
+        "metadata",
+        "outputs",
+        "metrics",
+        "scheduler",
+        "log"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

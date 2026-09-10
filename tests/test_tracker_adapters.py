@@ -17,6 +17,12 @@ from dmux.registry import adapter_names, adapter_statuses, load_adapter
 from dmux_mlflow import MLflowAdapter
 
 
+@pytest.fixture
+def installed_mlflow_entry():
+    if "mlflow" not in adapter_names():
+        pytest.skip('Editable install lacks mlflow entry point; run python -m pip install -e ".[dev]"')
+
+
 def write_plan(root, **task_fields):
     directory = root / "monitor"
     directory.mkdir(exist_ok=True)
@@ -210,7 +216,7 @@ def test_registry_discovery_stays_lazy_and_lists_failed_plugins(monkeypatch, cap
         load_adapter("example")
 
 
-def test_installed_entry_point_and_doctor(tmp_path):
+def test_installed_entry_point_and_doctor(tmp_path, installed_mlflow_entry):
     assert isinstance(load_adapter("mlflow"), MLflowAdapter)
     run_directory(tmp_path, 3)
     directory = write_plan(tmp_path, metrics=[text_metric()])
@@ -221,7 +227,7 @@ def test_installed_entry_point_and_doctor(tmp_path):
     assert before == {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
 
 
-def test_core_and_local_adapter_never_import_trackers_or_training_frameworks():
+def test_core_and_local_adapter_never_import_trackers_or_training_frameworks(installed_mlflow_entry):
     result = subprocess.run([sys.executable, "-c", '''
 import sys
 import dmux
@@ -266,7 +272,7 @@ def test_documented_example_plans_use_only_explicit_files(tmp_path, example):
     assert before == {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
 
 
-@pytest.mark.skipif(importlib.util.find_spec("mlflow") is None, reason="optional dmux[mlflow] SDK not installed")
+@pytest.mark.skipif(importlib.util.find_spec("mlflow") is None, reason="optional dmux-ml[mlflow] SDK not installed")
 def test_sdk_file_store_matches_supported_layout(tmp_path, monkeypatch):
     monkeypatch.setenv("MLFLOW_ALLOW_FILE_STORE", "true")
     monkeypatch.setenv("MLFLOW_ENABLE_ASYNC_LOGGING", "false")

@@ -24,8 +24,15 @@ jobs:
         run: python -m pip install '.[mlflow]' 'mlflow-skinny==3.3.2'
       - name: Install current supported MLflow SDK for demo compatibility
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
-        run: python -m pip install --upgrade '.[mlflow]'
+        run: python -m pip install --upgrade '.[mlflow]' 'sqlalchemy>=2,<3' 'alembic>=1.10,<2'
       - run: pytest -q
       - run: ruff check .
       - run: mypy
       - run: python -m build
+      - name: Retain checked release candidates
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dmux-ml-distributions
+          path: dist/*
+          retention-days: 14

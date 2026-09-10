@@ -14,6 +14,7 @@ from .connectors import JsonCache, tail_log
 from .projects import experiment_roster, project_paths, run_tag
 from .system import gpu_info, retain_gpu_reading, running_processes
 from .status import scheduler_records
+from .templates import expand_templates
 
 
 class Monitor:
@@ -82,10 +83,11 @@ class Monitor:
             }
 
         try:
-            self.adapter.configure(plan)
             project_root = self._plan_root(plan)
+            plan = expand_templates(plan, project_root, self.results_dir)
+            self.adapter.configure(plan)
             locations = project_paths(plan, project_root, self.results_dir)
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             return {
                 "schema_version": 1,
                 "state": "invalid",
@@ -120,6 +122,10 @@ class Monitor:
 
         tasks: list[dict] = []
         warnings: list[str] = status_warnings
+        prepare = getattr(self.adapter, "prepare_poll", None)
+        if prepare is not None:
+            prepare([(self._normalized_task(task), self.adapter.task_directory(task, locations[task.get("project")].results))
+                     for task in plan["tasks"]], now=now)
         if not self.explicit_project_root and not plan.get("project_root") and any(
             not task.get("project") and not self.results_dir and not plan.get("results_dir")
             and task.get("directory") and not Path(task["directory"]).is_absolute()
@@ -186,6 +192,7 @@ class Monitor:
                                  **task.get("metadata", {})},
                     "outputs": list(task.get("outputs", [])),
                     "metrics": list(task.get("metrics", [])),
+                    "scheduler": task.get("scheduler"),
                     "log": str(log) if log is not None else None,
                 }
             )
@@ -204,6 +211,12 @@ class Monitor:
             state = "complete"
         elif queue_jobs:
             state = "pause requested" if pause else "starting"
+        elif any(task["state"] == "scheduler running" for task in tasks):
+            state = "scheduler running"
+        elif any(task["state"] == "scheduled" for task in tasks):
+            state = "scheduled"
+        elif any(task["state"] == "unavailable" for task in tasks):
+            state = "unavailable"
         elif pause:
             state = "paused"
         else:

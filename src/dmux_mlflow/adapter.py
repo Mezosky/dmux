@@ -6,7 +6,9 @@ from pathlib import Path
 import re
 
 from dmux.adapters.filesystem import FilesystemAdapter
+from dmux.adapters.base import resolve_path
 from dmux.connectors import TextCache
+from .sqlite_store import SQLiteStore
 
 
 STATUSES = {1: "RUNNING", 2: "SCHEDULED", 3: "FINISHED", 4: "FAILED", 5: "KILLED"}
@@ -46,13 +48,19 @@ class MLflowAdapter(FilesystemAdapter):
     def __init__(self):
         super().__init__()
         self.text = TextCache()
+        self.sqlite = SQLiteStore()
 
     def configure(self, plan: Mapping) -> None:
-        super().configure({"name": "MLflow file store", **plan})
+        super().configure({"name": "MLflow", **plan})
         for task in plan["tasks"]:
             config = task.get("mlflow", {})
-            if not isinstance(config, Mapping) or set(config) - {"params", "tags", "expected_param"}:
-                raise ValueError("task.mlflow accepts params, tags and expected_param only")
+            if not isinstance(config, Mapping) or set(config) - {"params", "tags", "expected_param", "database", "run_id"}:
+                raise ValueError("task.mlflow accepts params, tags, expected_param, database and run_id only")
+            if "database" in config or "run_id" in config:
+                if any(not isinstance(config.get(key), str) or not config[key] for key in ("database", "run_id")):
+                    raise ValueError("SQLite mode requires non-empty mlflow.database and mlflow.run_id strings")
+                if "://" in config["database"]:
+                    raise ValueError("mlflow.database must be a local file path, not a tracking URI")
             if not task.get("directory"):
                 raise ValueError("MLflow tasks require the explicit local run directory")
             for kind in ("params", "tags"):
@@ -70,29 +78,37 @@ class MLflowAdapter(FilesystemAdapter):
 
     def inspect_task(self, task, path, cache, trackers, now):
         config = task.get("mlflow", {})
+        database = resolve_path(config["database"], path) if "database" in config else None
+        source = "SQLite run" if database is not None else "meta.yaml"
+
+        def value(kind, key):
+            return (self.sqlite.value(database, config["run_id"], kind, key) if database is not None
+                    else self.text.read(path / kind / key).strip())
+
         warnings = []
         status, invalid = None, False
         try:
-            status = run_status(self.text.read(path / "meta.yaml"))
+            status = (self.sqlite.status(database, config["run_id"]) if database is not None
+                      else run_status(self.text.read(path / "meta.yaml")))
         except FileNotFoundError:
-            warnings.append("MLflow meta.yaml not generated yet")
+            warnings.append(f"MLflow {source} not generated yet")
         except (OSError, ValueError, UnicodeError) as exc:
             invalid = True
-            warnings.append(f"MLflow meta.yaml unreadable: {exc}")
+            warnings.append(f"MLflow {source} unreadable: {exc}")
         metadata = dict(task.get("metadata", {}))
         for kind in ("params", "tags"):
             for key in config.get(kind, []):
                 try:
-                    metadata[f"{kind}/{key}"] = self.text.read(path / kind / key).strip()
+                    metadata[f"{kind}/{key}"] = value(kind, key)
                 except (OSError, ValueError, UnicodeError) as exc:
                     warnings.append(f"MLflow {kind}/{key} unreadable: {exc}")
         task["metadata"] = metadata
         if "expected_param" in config:
             try:
-                value = self.text.read(path / "params" / config["expected_param"]).strip()
-                if not re.fullmatch(r"[0-9]+", value):
+                expected_value = value("params", config["expected_param"])
+                if not re.fullmatch(r"[0-9]+", expected_value):
                     raise ValueError("expected param must be a non-negative integer")
-                task["expected"] = int(value)
+                task["expected"] = int(expected_value)
             except (OSError, ValueError, UnicodeError) as exc:
                 invalid = True
                 warnings.append(f"MLflow expected_param unreadable: {exc}")

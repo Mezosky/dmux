@@ -1,0 +1,31 @@
+{
+  "name": "MLflow SQLite runs",
+  "project_root": "/work/project",
+  "tasks": [
+    {
+      "experiment": "RUN_ID",
+      "stage": "train",
+      "directory": "outputs/RUN_ID",
+      "mlflow": {
+        "database": "../../mlflow.db",
+        "run_id": "RUN_ID",
+        "params": ["batch_size"],
+        "tags": ["mlflow.runName"]
+      },
+      "metrics": [
+        {
+          "label": "Loss",
+          "type": "sqlite",
+          "path": "../../mlflow.db",
+          "table": "metrics",
+          "where": {"run_uuid": "RUN_ID", "key": "loss"},
+          "order_by": ["step", "timestamp"],
+          "field": "value",
+          "x_field": "step",
+          "null_if": "is_nan",
+          "goal": "min"
+        }
+      ]
+    }
+  ]
+}
