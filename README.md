@@ -69,10 +69,13 @@ optional external tools; no model weights or inference frameworks are imported.
 dmux demo --live --register
 ```
 
-This creates a fresh temporary project, starts independent demo workers, and
+This creates a fresh temporary project, starts demo workers, and
 opens the dashboard in a terminal. The numeric workloads are paced over roughly
-five minutes so there is time to explore. They finish on their own; `q` closes
-the dashboard without stopping them. The command prints the project location
+five minutes so there is time to explore. Pressing `q`, Ctrl-C, or closing the
+live-demo launcher stops its workers and its demo tmux sessions; output files
+are retained. Add `--keep-running` only when you want a detached demo. Regular
+`dmux watch` and home sessions continue to leave experiments running.
+The command prints the project location
 and a command to reopen it. `--register` also adds the demo to the global home:
 after leaving the tour, run `dmux` from any directory to browse it again.
 No model downloads or GPU are needed.

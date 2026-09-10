@@ -258,8 +258,8 @@ def worker_command(name: str, results: Path, steps: int, delay: float) -> list[s
             "--steps", str(steps), "--delay", str(delay)]
 
 
-def launch_workers(root: Path, results: Path, steps: int, delay: float) -> list[subprocess.Popen]:
-    """Launch only explicitly requested demo jobs; dashboard exit never stops them."""
+def launch_workers(root: Path, results: Path, steps: int, delay: float, *, lifetime=None) -> list[subprocess.Popen]:
+    """Launch explicit demo jobs, optionally owned by a live tour lifetime."""
     workers: list[subprocess.Popen] = []
     for name in EXPERIMENTS:
         output = results / name
@@ -273,6 +273,8 @@ def launch_workers(root: Path, results: Path, steps: int, delay: float) -> list[
             raise OSError(f"Could not launch {name}: {exc}. Already started demo PIDs: "
                           + (", ".join(str(p.pid) for p in workers) or "none")) from exc
         workers.append(worker)
+        if lifetime is not None:
+            lifetime.workers.append(worker)
     return workers
 
 
@@ -280,7 +282,7 @@ def main(argv=None) -> None:
     parser = argparse.ArgumentParser(prog="dmux demo", description=__doc__)
     parser.add_argument("--project-root", type=Path, help="Fresh demo directory (default: temporary directory)")
     modes = parser.add_mutually_exclusive_group()
-    modes.add_argument("--live", action="store_true", help="Start independent workers and open the dashboard in a terminal")
+    modes.add_argument("--live", action="store_true", help="Open a live tour; closing it stops its own workers and sessions")
     modes.add_argument("--quick", action="store_true", help="Generate completed demo outputs without pacing delays")
     parser.add_argument("--steps", type=int, help="Steps per numeric workload (default: 300 live; 8 otherwise)")
     parser.add_argument("--delay", type=float, help="Pacing seconds per step (default: 1 live; 0 quick; 0.15 otherwise)")
@@ -289,6 +291,8 @@ def main(argv=None) -> None:
     parser.add_argument("--tmux-socket", type=Path, help="Server to create demo sessions on")
     parser.add_argument("--session-prefix", default="dmux", help="Prefix for the four session names")
     parser.add_argument("--register", action="store_true", help="Show this demo project in the global home screen")
+    parser.add_argument("--keep-running", action="store_true",
+                        help="Leave live demo workers and sessions running after the launcher exits")
     args = parser.parse_args(argv)
     from rich.console import Console
     from .settings import Settings
@@ -322,70 +326,76 @@ def main(argv=None) -> None:
             task["process"] = {"script": "demo_worker.py", "output_flag": "--out"}
         if args.live and not args.tmux:
             task["outputs"].append("worker.log")
-    if args.tmux:
-        from .sessions import SessionError, SessionManager
-        from .tmux import TmuxNavigator
+    from .demo_lifecycle import DemoLifetime
 
-        nav = TmuxNavigator(socket=args.tmux_socket)
-        manager = SessionManager(nav)
-        links = {name: f"{args.session_prefix}-{name}" for name in EXPERIMENTS}
-        # Detect collisions before any work starts. Creation also refuses races.
-        existing = {p["session"] for p in nav.snapshot([])["panes"]}
-        if existing & set(links.values()):
-            parser.error("Demo session name already exists; choose another --session-prefix")
-        definition["tmux"] = {"links": links}
-        if args.tmux_socket:
-            definition["tmux"]["socket"] = str(args.tmux_socket.expanduser().resolve())
-        root.mkdir(parents=True, exist_ok=True)
-        created = []
-        try:
-            # Chat shells keep completed experiments' sessions alive for review.
-            for name in EXPERIMENTS:
-                sid = manager.create(links[name], project_root=root, results_dir=results / name,
-                                     command=settings.values['ai_cli'])
-                created.append((name, sid))
+    with DemoLifetime(cleanup=args.live and not args.keep_running) as lifetime:
+        if args.tmux:
+            from .sessions import SessionError, SessionManager
+            from .tmux import TmuxNavigator
+
+            nav = TmuxNavigator(socket=args.tmux_socket)
+            manager = SessionManager(nav)
+            links = {name: f"{args.session_prefix}-{name}" for name in EXPERIMENTS}
+            # Detect collisions before any work starts. Creation also refuses races.
+            existing = {p["session"] for p in nav.snapshot([])["panes"]}
+            if existing & set(links.values()):
+                parser.error("Demo session name already exists; choose another --session-prefix")
+            definition["tmux"] = {"links": links}
+            if args.tmux_socket:
+                definition["tmux"]["socket"] = str(args.tmux_socket.expanduser().resolve())
+            root.mkdir(parents=True, exist_ok=True)
+            created = []
+            try:
+                # Chat shells keep completed experiments' sessions alive for review.
+                for name in EXPERIMENTS:
+                    sid = manager.create(links[name], project_root=root, results_dir=results / name,
+                                         command=settings.values['ai_cli'])
+                    created.append((name, sid))
+                    lifetime.own_session(manager, sid, links[name])
+                create_plan(queue / "plan.json", definition)
+                for name, sid in created:
+                    manager.add_window(sid, name="experiment", project_root=root,
+                        results_dir=results / name,
+                        command=[*worker_command(name, results, args.steps, args.delay), "--keep-window"])
+            except (SessionError, OSError) as exc:
+                # Report exact IDs; a managed live tour also cleans up its owned sessions.
+                parser.exit(2, f"{exc}\nCreated sessions: {', '.join(sid for _, sid in created) or 'none'}\n")
+        elif args.live:
             create_plan(queue / "plan.json", definition)
-            for name, sid in created:
-                manager.add_window(sid, name="experiment", project_root=root,
-                    results_dir=results / name,
-                    command=[*worker_command(name, results, args.steps, args.delay), "--keep-window"])
-        except (SessionError, OSError) as exc:
-            # Do not kill partially created workspaces; report their exact IDs.
-            parser.exit(2, f"{exc}\nCreated sessions: {', '.join(sid for _, sid in created) or 'none'}\n")
-    elif args.live:
-        create_plan(queue / "plan.json", definition)
-        try:
-            workers = launch_workers(root, results, args.steps, args.delay)
-        except OSError as exc:
-            parser.exit(2, f"{exc}\nPlan retained at {queue / 'plan.json'}.\n")
-        print("Demo worker PIDs: " + ", ".join(str(worker.pid) for worker in workers))
-    else:
-        create_plan(queue / "plan.json", definition)
-        for task in definition["tasks"]:
-            update_status(queue, task["experiment"], task["stage"])
-            run_experiment(task["experiment"], results, args.steps, args.delay)
-        update_status(queue, None, None)
-    print(f"Tiny model zoo ready at {root}")
-    print(f"dmux watch --project-root {shlex.quote(str(root))} --plan-dir monitor")
-    if args.register:
-        from .catalog import ProjectCatalog
+            try:
+                workers = launch_workers(root, results, args.steps, args.delay, lifetime=lifetime)
+            except OSError as exc:
+                parser.exit(2, f"{exc}\nPlan retained at {queue / 'plan.json'}.\n")
+            print("Demo worker PIDs: " + ", ".join(str(worker.pid) for worker in workers))
+        else:
+            create_plan(queue / "plan.json", definition)
+            for task in definition["tasks"]:
+                update_status(queue, task["experiment"], task["stage"])
+                run_experiment(task["experiment"], results, args.steps, args.delay)
+            update_status(queue, None, None)
+        print(f"Tiny model zoo ready at {root}")
+        print(f"dmux watch --project-root {shlex.quote(str(root))} --plan-dir monitor")
+        if args.register:
+            from .catalog import ProjectCatalog
 
-        try:
-            entry = ProjectCatalog().add(queue / "plan.json")
-            print(f'Registered {entry["name"]} in the global dmux home.')
-        except (ValueError, OSError) as exc:
-            parser.exit(2, f"Demo retained at {root}; registration failed: {exc}\n")
-    else:
-        print(f"Global home: dmux add {shlex.quote(str(root))}")
-    if args.tmux:
-        print("Press t to browse the linked sessions; chat windows are ready for your AI CLI.")
-    if args.live:
-        print("n/p browse experiments · Enter details · q closes dmux, leaving workers running.")
-        print("The paced numeric demos finish on their own; audio may finish immediately.")
-        if sys.stdin.isatty() and sys.stdout.isatty():
-            from .cli import main as watch
+            try:
+                entry = ProjectCatalog().add(queue / "plan.json")
+                print(f'Registered {entry["name"]} in the global dmux home.')
+            except (ValueError, OSError) as exc:
+                parser.exit(2, f"Demo retained at {root}; registration failed: {exc}\n")
+        else:
+            print(f"Global home: dmux add {shlex.quote(str(root))}")
+        if args.tmux:
+            print("Press t to browse the linked sessions; chat windows are ready for your AI CLI.")
+        if args.live:
+            print("Closing this demo stops its workers and demo sessions; results are retained."
+                  if lifetime.cleanup else "Closing this demo leaves workers running (--keep-running).")
+            print("Press ? for help; q closes the demo.")
+            print("The paced numeric demos finish on their own; audio may finish immediately.")
+            if sys.stdin.isatty() and sys.stdout.isatty():
+                from .cli import main as watch
 
-            watch(["watch", "--project-root", str(root), "--plan-dir", "monitor", "--interval", "0.5", "--no-gpu"])
+                watch(["watch", "--project-root", str(root), "--plan-dir", "monitor", "--interval", "0.5", "--no-gpu"])
 
 
 if __name__ == "__main__":

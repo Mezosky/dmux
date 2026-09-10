@@ -113,3 +113,51 @@ def test_browser_refuses_to_remove_its_own_session(private_tmux):
     nav = TmuxNavigator(socket=socket, env={**env, "TMUX": f"{socket},99,0", "TMUX_PANE": pane["pane_id"]})
     with pytest.raises(SessionError, match="outside this session"):
         SessionManager(nav).prepare_removal(pane)
+
+
+@pytest.mark.parametrize('failure', [False, True])
+def test_live_demo_exit_removes_only_its_sessions(private_tmux, tmp_path, monkeypatch, failure):
+    import os
+    import psutil
+    from dmux.demo import main as demo
+    socket, env, tmux = private_tmux
+    for key in ('TMUX', 'TMUX_PANE'):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setattr(sys.stdin, 'isatty', lambda: True)
+    monkeypatch.setattr(sys.stdout, 'isatty', lambda: True)
+    baseline = tmux('list-panes', '-a', '-F', '#{session_id}:#{pane_id}:#{pane_pid}')
+    owned = []
+    def watch(args):
+        nav = TmuxNavigator(socket=socket, env=env)
+        for pane in nav.snapshot([])['panes']:
+            if pane['session'].startswith('cleanup-'):
+                owned.append(psutil.Process(pane['pane_pid']))
+        assert len(owned) == 8  # Four chat windows and four demo workers.
+        if failure:
+            raise RuntimeError('owned test dashboard failure')
+    monkeypatch.setattr('dmux.cli.main', watch)
+    args = ['--live', '--tmux', '--tmux-socket', str(socket), '--session-prefix', 'cleanup',
+            '--project-root', str(tmp_path / 'tour'), '--steps', '100', '--delay', '1']
+    if failure:
+        with pytest.raises(RuntimeError, match='dashboard failure'):
+            demo(args)
+    else:
+        demo(args)
+    assert tmux('list-panes', '-a', '-F', '#{session_id}:#{pane_id}:#{pane_pid}') == baseline
+    assert all(not process.is_running() or process.status() == psutil.STATUS_ZOMBIE for process in owned)
+    assert (tmp_path / 'tour' / 'monitor' / 'plan.json').exists()
+
+
+def test_demo_cleanup_refuses_changed_session_generation(tmp_path, capsys):
+    from types import SimpleNamespace
+    from dmux.demo_lifecycle import DemoLifetime
+    from dmux.sessions import Removal
+    original = Removal('$2', 'demo', ('123\t456', ()), ())
+    replacement = Removal('$2', 'demo', ('999\t456', ()), ())
+    manager = SimpleNamespace(
+        navigator=SimpleNamespace(snapshot=lambda tasks: {'panes': [{'session_id': '$2'}]}),
+        prepare_removal=lambda selected: replacement,
+        remove=lambda *a, **kw: pytest.fail('removed replacement session'))
+    with DemoLifetime() as lifetime:
+        lifetime.sessions.append((manager, original))
+    assert 'identity changed' in capsys.readouterr().err

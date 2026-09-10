@@ -136,15 +136,18 @@ dmux doctor --project-root /tmp/my-fresh-demo
 ```
 
 `--live` starts detached workers and opens the dashboard when stdin/stdout are
-terminals. When redirected, it only prints the location, PIDs and reopen command.
+terminals. When redirected, it prints the location, PIDs and reopen command, then
+cleans up on exit too; add `--keep-running` to launch a detached demo.
 The default is 300 steps with one-second pacing for numeric workloads; change
 `--steps` and `--delay` for a shorter tour. The audio artifact-only demo completes
 quickly. Without `--live`, demos run synchronously unless `--tmux` is supplied.
 
-Quit with `q` to leave workers running, or use the explicit confirmed stop
-controls. Demo files are retained, never automatically removed. With `--tmux`,
-one session per experiment has separate chat/worker windows; these sessions
-remain after completion until you explicitly remove them. Each creation uses
+Quit the live tour with `q` to stop its workers. Ctrl-C, termination signals, and
+errors also trigger cleanup. Demo files are retained, never automatically removed.
+With `--live --tmux`, cleanup also closes the sessions and chat windows created
+by that invocation, after validating their identities. `--keep-running`, or
+`--tmux` without `--live`, leaves an explicitly detached workspace for later
+inspection. Closing a separate `dmux watch` never stops its experiments. Each creation uses
 the chosen server; tests use private temporary sockets only.
 
 Validation currently covers these deterministic demos and their output

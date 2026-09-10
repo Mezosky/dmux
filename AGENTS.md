@@ -34,7 +34,7 @@ sequence, or results layout.
 - `src/dmux/discovery.py`: bounded read-only file/field suggestions, not framework detection.
 - `src/dmux/onboarding.py`: explicit setup wizard and exclusive new-plan creation.
 - `src/dmux/diagnostics.py`: read-only connection checks and stable diagnostic JSON.
-- `src/dmux/demo.py`: explicitly launched tiny demos; independent live workers.
+- `src/dmux/demo.py`, `demo_lifecycle.py`: explicit demos and ownership-scoped exit cleanup.
 - `src/dmux/settings.py`: schema-validated, locked user preferences with explicit precedence.
 - `src/dmux/options_view.py`, `appearance.py`: shared options UI, themes and wordmark.
 - `src/dmux/log_view.py`: bounded configured-log search, scrolling and follow mode.
@@ -49,7 +49,9 @@ sequence, or results layout.
    The user explicitly requested separate stop and session-management controls:
    session creation is allowed through explicit commands/demo launch, session
    removal through exact-name confirmation, and stage/experiment SIGTERM through
-   exact-label confirmation. These are never automatic monitoring actions.
+   exact-label confirmation. These are never automatic monitoring actions. The
+   explicit live-demo launcher may clean up its own newly created resources on exit
+   under invariant 16; ordinary monitoring remains read-only.
 2. JSONL connectors count committed unique records. Malformed,
    duplicate, semantically duplicate, partial, and unexpected rows must not
    silently inflate progress. Unexpected records are reported separately and
@@ -93,9 +95,13 @@ sequence, or results layout.
     pre-creation cancellation write nothing. Registration failure leaves the
     newly created plan intact. `doctor` is strictly read-only and must never
     launch project code or external tools.
-16. Live demo workers run independently of the dashboard, only in fresh demo
-    output locations. Quitting never signals them or removes their files. Tests
-    clean up only their own exact worker identities/private tmux server.
+16. Live demos use only fresh output locations. Closing the live-demo launcher
+    stops its own workers/descendants and removes its own verified tmux sessions,
+    as explicitly requested by the user. Cleanup also runs on interrupts/errors,
+    retains output files, and never selects processes or sessions by name alone.
+    `--keep-running` explicitly opts into detached demo behavior. Closing ordinary
+    watch/home never triggers demo cleanup. Tests use exact owned identities and
+    private tmux servers only.
 17. Bare `dmux` is the global home. Explicit scoped flags and `watch`, `snapshot`,
     `json`, `kill`, and `sessions` retain their local/project semantics. Registry
     entries reference plans; never scan the computer, copy results into the

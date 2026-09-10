@@ -30,7 +30,9 @@ Manage validated preferences. Values use JSON syntax; strings may be unquoted.
 Show opt-in observed transitions. --json prints the versioned event list.
 .TP
 .B demo --live
-Launch tiny independent workloads in a fresh temporary project.
+Launch tiny workloads in a fresh temporary project. Closing the live tour stops
+its workers and demo sessions, retaining results. --keep-running opts into
+detached demo workers. Ordinary monitoring never stops jobs on exit.
 .TP
 .B add, remove, projects
 Manage registrations without changing experiment files or jobs.
