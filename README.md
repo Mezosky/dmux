@@ -16,12 +16,22 @@ optional tmux workspaces for experiments and AI CLI chats.
 The core is framework- and benchmark-independent. Experiments, stages, record
 identities, and output locations come from your plan, not a bundled model roster.
 
-![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-overview.png)
+![Your experiments. One terminal. Real dmux demo captures showing the experiment overview and live result plots](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/dmux-highlight.png)
+
+These demo captures are from `659298d` (September 9, 2026), before the latest
+layout and label fixes. See [capture notes](https://github.com/Mezosky/dmux/blob/main/screenshots/README.md) for details.
 
 Compare vision/text, language, tabular, and audio experiments in one overview.
 Use `n` / `p` to select a tab, then Enter to inspect it. The audio example has
 only completion artifacts, so it shows a completed stage without inventing a
 saved-count percentage.
+
+<details>
+<summary>View the full experiment overview</summary>
+
+![dmux overview with four completed experiments, visual tabs, and separate evaluation and training stages](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-overview.png)
+
+</details>
 
 ## Install
 
@@ -63,11 +73,11 @@ and Enter to open an experiment. Its details include optional small result plots
 Esc returns home; `t` opens that project's tmux browser. Tab selects a recently
 opened experiment; `x` closes its recent tab without stopping jobs.
 
-![dmux global home showing four experiments in one registered project, recent experiment tabs, three interrupted runs, and one completed audio run](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/global-home.png)
+![dmux global home showing one registered project with three running experiments and one completed audio run](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/global-home.png)
 
-The `OPEN` strip contains recently opened experiments. This capture shows three
-interrupted runs and one completed audio run; PID dashes mean no matching live
-workers were found. Enter inspects the selected experiment without starting it.
+This capture shows three running experiments with matched worker PIDs and one
+completed audio run. Enter inspects the selected experiment without starting it.
+After you open experiments, the `OPEN` strip provides shortcuts to recent details.
 
 The home screen compares stage states, never a combined percentage of unrelated
 epochs, predictions, and checkpoints. Missing projects remain visible as
@@ -120,22 +130,20 @@ dmux json --project-root /tmp/dmux-demo --plan-dir monitor
 
 ### Reading a live run
 
-![Live bigram language-model training at 193 of 1800 epochs, showing process PID, stage progress, resource telemetry, and a linked tmux session](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/live-progress.png)
+![Live bigram language-model training at 28 of 300 saved epochs, with worker PID and a linked tmux session](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/live-progress.png)
 
-- The top counter summarizes the whole plan. Here, `193 / 1,800` epochs are
-  saved and `0/1` stages are complete.
+- The top counter summarizes the whole plan. Here, `87 / 900` records are
+  saved across the numeric stages and `1/4` stages are complete.
 - The selected experiment and its current stage have separate progress displays.
-  They match in this single-stage example; `10.7%` measures saved epochs, not
-  elapsed time or an ETA.
+  The selected Bigram LM stage has `28 / 300` saved epochs (`9.3%`); this
+  measures saved work, not elapsed time or an ETA.
 - The active-process line shows the matched PID and its elapsed runtime. Press
   `t` to browse the linked tmux workspace, or Enter to inspect the experiment.
-- GPU readings describe device-wide activity, not usage attributed to this
-  experiment. This tiny language model runs on CPU; the screenshot's busy GPU
-  can belong to other workloads.
+- GPU sampling is disabled for this CPU demo. This older capture labels it
+  unavailable; current builds explicitly show that sampling is disabled.
+  When enabled, GPU readings describe device-wide activity, not usage attributed
+  to one experiment.
 
-The yellow parent-queue warning is from an earlier build. Standalone experiments
-no longer require a scheduler; dmux warns about a missing scheduler only when
-one is explicitly configured.
 Closing dmux leaves that process running; explicit stops require confirmation.
 
 ### Connect existing experiment files
@@ -189,13 +197,14 @@ directory. Absolute task paths remain absolute. A plan can also declare separate
 `root` and `results_dir` settings for each named project; see
 [the project configuration](https://github.com/Mezosky/dmux/blob/main/docs/PLAN_SCHEMA.md#multiple-projects).
 
-![Live experiment details at 470 of 1800 epochs, with the worker PID, model and dataset metadata, and previews of progress.json and train.log](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-details-live.png)
+![Live experiment details at 38 of 300 epochs, with worker PID, loss and perplexity plots, demo metadata, and configured output previews](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/experiment-details-live.png)
 
 Enter opens this detail view. Use `[` / `]` to choose a stage and Esc to return
 to the overview. The running stage shows its PID, elapsed runtime, and process
-command. Metadata comes from the plan; in this capture it identifies the model,
-dataset, CPU device, and epoch count. The Outputs panel previews the configured
-`progress.json` and `train.log` files, including perplexity and recent log lines.
+command. Metadata comes from the plan; this capture shows the demo flag and
+stage description. The Outputs panel previews configured `progress.json`,
+`train.log`, and `history.jsonl` files. Metrics and previews refresh independently
+and can be slightly ahead of the progress snapshot.
 
 `k` / `K` request a confirmed stage / experiment stop; `x` only hides the tab
 and leaves jobs running.
@@ -218,6 +227,11 @@ Previews read bounded text from configured files. Binary artifacts are listed
 by path and size.
 
 ### Small result plots, only when opened
+
+![Compact live experiment details showing loss and perplexity sparklines with latest values, visible ranges, and 46 recent samples](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/result-plots.png)
+
+This separate live capture shows `43 / 300` saved epochs and bounded recent
+result samples. The compact view prioritizes results over metadata and previews.
 
 Use a task's optional `metrics` list to choose what interests you. For example,
 with JSONL records containing `step`, `loss`, and `accuracy`:
@@ -260,9 +274,9 @@ Press `t` from the dashboard or run `dmux sessions` directly. Use `/` to search,
 Tab to switch between sessions and windows, and Enter to open the selection.
 Project and result directories appear for workspaces created by dmux.
 
-![tmux session browser linking the dmux-live session and its chat and experiment windows to tiny_llm, with separate project and results paths](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/tmux-session-browser.png)
+![tmux session browser linking the zoo-tiny_llm session and its chat and experiment windows to tiny_llm, with separate project and results paths](https://raw.githubusercontent.com/Mezosky/dmux/main/screenshots/tmux-session-browser.png)
 
-The selected `dmux-live` session contains independent `chat` and `experiment`
+The selected `zoo-tiny_llm` session contains independent `chat` and `experiment`
 windows and is linked to `tiny_llm`. Use the arrow keys or `j` / `k` to select a
 session; Tab lets you choose a specific window/pane before pressing Enter.
 The project and results paths show which workspace you are entering. Browsing
