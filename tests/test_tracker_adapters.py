@@ -283,3 +283,23 @@ def test_sdk_file_store_matches_supported_layout(tmp_path, monkeypatch):
     directory = write_plan(tmp_path, directory=str(path), metrics=[text_metric()])
     assert monitor(directory).snapshot()["tasks"][0]["state"] == "complete"
     assert MetricReader().read(path, text_metric())["points"] == [(0, 2), (1, 1)]
+
+
+@pytest.mark.skipif(sys.platform != "linux" or importlib.util.find_spec("mlflow") is None,
+                    reason="Linux demo subprocess test requires the optional MLflow SDK")
+def test_mlflow_demo_generates_real_results_and_refuses_existing_projects(tmp_path):
+    script = Path(__file__).resolve().parents[1] / "examples/run_mlflow_demo.py"
+    root = tmp_path / "fresh-demo"
+    command = [sys.executable, str(script), "--project-root", str(root), "--steps", "5", "--interval", "0"]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert result.returncode == 0, result.stderr
+    assert "dmux watch --adapter mlflow" in result.stdout
+    snapshot = monitor(root / "monitor").snapshot()
+    task = snapshot["tasks"][0]
+    assert task["state"] == "complete" and task["progress"]["saved"] == task["expected"] == 5
+    values = MetricReader().read(task["directory"], task["metrics"][0])["points"]
+    assert len(values) == 5 and values[-1][1] < values[0][1]
+    before = {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}
+    rejected = subprocess.run(command, capture_output=True, text=True, timeout=30)
+    assert rejected.returncode == 2 and "already exists" in rejected.stderr
+    assert before == {p: p.read_bytes() for p in root.rglob("*") if p.is_file()}

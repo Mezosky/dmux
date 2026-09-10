@@ -271,6 +271,10 @@ W&B local JSON summaries and logs can use the filesystem adapter when those
 files are present. See [tracker setup, example plans, and supported limits](https://github.com/Mezosky/dmux/blob/main/docs/TRACKERS.md).
 W&B binary history and tracking-server access are not implemented yet.
 
+For a real MLflow demo, install `python -m pip install -e '.[mlflow]'` and run
+`python examples/run_mlflow_demo.py`. It logs a tiny linear model's MSE and
+prints the command to open its fresh run in a second terminal.
+
 <details>
 <summary>What if output previews are not configured?</summary>
 

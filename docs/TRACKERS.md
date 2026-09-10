@@ -4,6 +4,27 @@ dmux observes files already produced by a tracker. Select individual run
 directories in a plan; it does not discover runs by scanning a tracking store,
 initialize a tracker, sync data, or connect to a server.
 
+## Run a real MLflow demo
+
+From this repository, install the optional SDK and start the tiny CPU workload:
+
+```bash
+python -m pip install -e '.[mlflow]'
+python examples/run_mlflow_demo.py
+```
+
+It fits `y = 2x + 1` on three fixed samples for about a minute, logging actual
+MSE values through MLflow's SDK into a fresh temporary file store. Copy the
+printed `dmux watch --adapter mlflow ...` command into a second terminal, then
+press Enter for the plot, parameters, and outputs. Closing dmux leaves the
+workload running; it finishes on its own and retains the results for later
+inspection. No model downloads, GPU, server, or credentials are needed.
+
+Use `--steps 240 --interval 0.5` for a longer tour, or `--steps 5 --interval 0`
+for a quick completed fixture. `--project-root PATH` accepts only a new directory.
+The demo's `progress.json` is an explicit workload counter, separate from the
+MLflow metric history.
+
 ## Start with the filesystem adapter
 
 Copy [the MLflow example](../examples/mlflow-plan.json) or
