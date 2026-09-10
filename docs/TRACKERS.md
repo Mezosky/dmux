@@ -25,6 +25,11 @@ for a quick completed fixture. `--project-root PATH` accepts only a new director
 The demo's `progress.json` is an explicit workload counter, separate from the
 MLflow metric history.
 
+Newer SDKs require `MLFLOW_ALLOW_FILE_STORE=true` to create a file store.
+The demo sets this opt-in within its own process before loading MLflow; no shell
+configuration is needed. This deliberately exercises local-file monitoring.
+See [MLflow's file-store guidance](https://mlflow.org/docs/latest/self-hosting/migrate-from-file-store#continue-using-the-filesystem-backend).
+
 ## Start with the filesystem adapter
 
 Copy [the MLflow example](../examples/mlflow-plan.json) or
@@ -144,8 +149,9 @@ omit `x_field` to show append order when repeated steps are intentional.
 
 The `mlflow` extra installs `mlflow-skinny` for SDK compatibility tests and for
 callers who need the SDK themselves. Local monitoring never requires or imports
-it. CI tests the file layout against 3.3.2 in one Ubuntu job; all jobs exercise
-tiny hand-written fixtures without a tracker SDK.
+it. CI tests 3.3.2 on Ubuntu/Python 3.11 and the current supported SDK on
+Ubuntu/Python 3.13. All jobs exercise tiny hand-written fixtures, and the other
+jobs run without a tracker SDK.
 
 This increment supports scoped watch/snapshot/json and doctor. Global-home
 registration currently uses the filesystem adapter; it does not preserve MLflow

@@ -22,6 +22,9 @@ jobs:
       - name: Install optional MLflow SDK for file-format compatibility test
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.11'
         run: python -m pip install '.[mlflow]' 'mlflow-skinny==3.3.2'
+      - name: Install current supported MLflow SDK for demo compatibility
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.13'
+        run: python -m pip install --upgrade '.[mlflow]'
       - run: pytest -q
       - run: ruff check .
       - run: mypy

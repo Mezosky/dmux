@@ -268,6 +268,7 @@ def test_documented_example_plans_use_only_explicit_files(tmp_path, example):
 
 @pytest.mark.skipif(importlib.util.find_spec("mlflow") is None, reason="optional dmux[mlflow] SDK not installed")
 def test_sdk_file_store_matches_supported_layout(tmp_path, monkeypatch):
+    monkeypatch.setenv("MLFLOW_ALLOW_FILE_STORE", "true")
     monkeypatch.setenv("MLFLOW_ENABLE_ASYNC_LOGGING", "false")
     monkeypatch.setenv("MLFLOW_ENABLE_SYSTEM_METRICS_LOGGING", "false")
     from mlflow import MlflowClient
@@ -287,7 +288,12 @@ def test_sdk_file_store_matches_supported_layout(tmp_path, monkeypatch):
 
 @pytest.mark.skipif(sys.platform != "linux" or importlib.util.find_spec("mlflow") is None,
                     reason="Linux demo subprocess test requires the optional MLflow SDK")
-def test_mlflow_demo_generates_real_results_and_refuses_existing_projects(tmp_path):
+@pytest.mark.parametrize("allow_file_store", [None, "false"])
+def test_mlflow_demo_generates_real_results_and_refuses_existing_projects(tmp_path, monkeypatch, allow_file_store):
+    if allow_file_store is None:
+        monkeypatch.delenv("MLFLOW_ALLOW_FILE_STORE", raising=False)
+    else:
+        monkeypatch.setenv("MLFLOW_ALLOW_FILE_STORE", allow_file_store)
     script = Path(__file__).resolve().parents[1] / "examples/run_mlflow_demo.py"
     root = tmp_path / "fresh-demo"
     command = [sys.executable, str(script), "--project-root", str(root), "--steps", "5", "--interval", "0"]

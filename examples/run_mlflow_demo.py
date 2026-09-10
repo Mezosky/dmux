@@ -28,6 +28,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.steps < 1 or not math.isfinite(args.interval) or args.interval < 0:
         parser.error("steps must be positive and interval finite and non-negative")
+    # This demo explicitly exercises local file-store monitoring. Newer MLflow
+    # SDKs require this opt-in; it stays inside the demo and its re-exec worker.
+    os.environ["MLFLOW_ALLOW_FILE_STORE"] = "true"
     try:
         from mlflow import MlflowClient
     except ImportError:
