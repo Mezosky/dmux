@@ -35,7 +35,7 @@ Generated from `dmux.bindings.BINDINGS`.
 | K | Review stop for experiment; exact label required |
 | x | Hide experiment tab; jobs keep running |
 | u | Restore hidden experiment tabs |
-| m | Page result metrics |
+| m | Next metrics page when available; does not save results |
 | q/Esc | Back from details; q quits dashboard |
 | r | Refresh |
 | ? | Show keyboard help |

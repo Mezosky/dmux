@@ -27,7 +27,7 @@ BINDINGS = (
     Binding(("K",), "K", "K", "Review stop for experiment; exact label required"),
     Binding(("x", "X"), "x", "x", "Hide experiment tab; jobs keep running"),
     Binding(("u", "U"), "u", "u", "Restore hidden experiment tabs"),
-    Binding(("m",), "m", "m", "Page result metrics", ("detail",)),
+    Binding(("m",), "m", "m", "Next metrics page when available; does not save results", ("detail",)),
     Binding(("q", "Q", "\x1b"), "q/Esc", "q", "Back from details; q quits dashboard"),
     Binding(("j", DOWN), "j/↓", "j", "Next run", ("home",)),
     Binding(("k", UP), "k/↑", "k", "Previous run", ("home",)),

@@ -106,8 +106,9 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
     if notice:
         footer.append(Text(notice, style="yellow", overflow="ellipsis", no_wrap=True))
     footer.append(Text("[ ] stage · t tmux · k/K stop · ? help", style="grey70", no_wrap=True))
-    footer.append(Text(("Esc/q home" if return_home else "Esc/q back") +
-                       " · m results · x hide · u restore", style="grey70", no_wrap=True))
+    navigation = Text(("Esc/q home" if return_home else "Esc/q back") +
+                      " · x hide · u restore", style="grey70", no_wrap=True)
+    footer.append(navigation)
 
     def remaining(extra=()):
         return height - content_height(Panel(Group(*parts, *extra, *footer)), width)
@@ -147,6 +148,8 @@ def render_detail(snapshot, model, *, presentation, stage=None, height=40, width
         # line. Reserve that shape so page size cannot change with page contents.
         status_rows = content_height(Text("No valid points yet; check the configured field"), max(1, width - 8))
         limit = max(1, min(3, (remaining() - 2) // (2 + status_rows)))
+        if len(task["metrics"]) > limit:
+            navigation.append(" · m next metrics")
         parts.append(render_metrics(task, metric_reader, width=max(1, width - 4),
                                     limit=limit, offset=metric_offset))
     for count in range(min(len(tasks), 4 if has_metrics else 8), 1, -1):

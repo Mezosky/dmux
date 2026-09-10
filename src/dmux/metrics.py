@@ -258,6 +258,10 @@ def render_metrics(task, reader, *, width=80, limit=3, offset=0):
         if data["warnings"]:
             lines.append(Text("; ".join(data["warnings"]), style="yellow", overflow="ellipsis", no_wrap=True))
     caption = "Results · recent samples (not time-scaled)"
+    subtitle = None
     if len(configs) > limit:
         caption += f" · {start + 1}–{start + len(chosen)}/{len(configs)} · m next"
-    return Panel(Group(*lines), title=Text(caption), border_style="cyan", padding=(0, 1))
+    elif offset:
+        subtitle = Text("Only 1 metric configured · no next page" if len(configs) == 1
+                        else f"All {len(configs)} metrics fit on this page")
+    return Panel(Group(*lines), title=Text(caption), subtitle=subtitle, border_style="cyan", padding=(0, 1))

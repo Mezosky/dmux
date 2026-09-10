@@ -20,6 +20,11 @@ press Enter for the plot, parameters, and outputs. Closing dmux leaves the
 workload running; it finishes on its own and retains the results for later
 inspection. No model downloads, GPU, server, or credentials are needed.
 
+This demo configures one metric, MSE, so there is no second metrics page for
+`m` to show. `m` does not save or export results. The worker automatically saves
+its history in `metrics/mse`, its counter in `progress.json`, and its final
+parameters in `model.json`, beneath the run's directory shown in the detail view.
+
 Use `--steps 240 --interval 0.5` for a longer tour, or `--steps 5 --interval 0`
 for a quick completed fixture. `--project-root PATH` accepts only a new directory.
 The demo's `progress.json` is an explicit workload counter, separate from the

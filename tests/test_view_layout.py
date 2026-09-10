@@ -40,6 +40,29 @@ def test_detail_uses_available_rows_for_outputs_and_log(demo_snapshot, width, he
     assert text.count("? help") == 1
 
 
+@pytest.mark.parametrize("count", [0, 1, 2, 4])
+def test_metric_paging_hint_and_feedback_match_visible_capacity(demo_snapshot, count):
+    from dmux.controller import DashboardController
+
+    monitor, snapshot = demo_snapshot
+    task = next(task for task in snapshot["tasks"] if task["model"] == "tiny_llm")
+    task["metrics"] = [{**task["metrics"][0], "label": f"Metric {i}"} for i in range(count)]
+    controller = DashboardController(snapshot, monitor.adapter, None, selected="tiny_llm", entry="detail")
+    controller.key("m")
+    text = rendered(render_detail(snapshot, "tiny_llm", presentation=monitor.adapter.presentation,
+                                  width=120, height=42, metric_offset=controller.metric_offset), 120)
+    assert len(text.splitlines()) <= 42
+    if count <= 3:
+        assert "m next" not in text
+        if count == 1:
+            assert "Only 1 metric configured" in text and "no next page" in text
+        elif count == 2:
+            assert "All 2 metrics fit on this page" in text
+    else:
+        assert "m next metrics" in text and "Metric 3" in text
+        assert "Metric 0" not in text
+
+
 def test_dashboard_log_uses_available_rows_at_42(demo_snapshot):
     monitor, snapshot = demo_snapshot
     snapshot["recent"] = ["epoch 3 completed", "checkpoint saved"]
