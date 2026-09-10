@@ -53,12 +53,34 @@ and snapshot schemas. The sdist adds docs and small examples. Neither archive
 includes screenshots, the logo, the supplied screenshot ZIP, or tests.
 CI retains the built archives from Ubuntu/Python 3.13 for inspection.
 
-Publishing is a separate release action. The repository contract currently
-prohibits package publication; no workflow uploads to an index. Before an
-authorized release, confirm the distribution name and PyPI ownership, validate
-the archives, and configure the chosen publisher. Then update README install
-instructions to use `pipx install dmux-ml`. Do not advertise an index install
-before the release exists.
+## Publish an authorized release
+
+The maintainer has explicitly authorized publishing `dmux-ml` 0.2.0. Publication
+uses the manually dispatched `publish.yml` workflow on `main`; ordinary pushes
+and pull requests never publish. The build job verifies the requested version,
+runs tests/lint/types, builds both archives and checks their metadata. The
+separate upload job can publish only those artifacts using PyPI Trusted
+Publishing; no stored API token is needed.
+
+For the first release, sign in to [PyPI publishing settings](https://pypi.org/manage/account/publishing/)
+and add a pending GitHub publisher with these exact values:
+
+| Field | Value |
+| --- | --- |
+| PyPI project name | `dmux-ml` |
+| Owner | `Mezosky` |
+| Repository | `dmux` |
+| Workflow filename | `publish.yml` |
+| Environment | `pypi` |
+
+See [PyPI's first-release instructions](https://docs.pypi.org/trusted-publishers/creating-a-project-through-oidc/).
+Then run **Publish to PyPI** from GitHub Actions on `main`, with version `0.2.0`
+and publishing enabled. Disable the publishing input to check the complete build
+without uploading. GitHub OIDC permission is confined to the upload job.
+
+After success, verify the PyPI files and installation in a fresh environment,
+then update README install instructions to `pipx install dmux-ml`. PyPI versions
+cannot be overwritten: make fixes in a new version after publication.
 
 Schema v2 removes scoped JSON alias keys. Existing scripts can select
 `--schema-version 1`; see [the JSON migration contract](SNAPSHOTS.md).
